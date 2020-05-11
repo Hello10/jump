@@ -1,0 +1,30 @@
+{
+  "name": "@hello10/jump-server",
+  "version": "1.0.0",
+  "description": "Jump GraphQL",
+  "main": "dist/index.js",
+  "license": "MIT",
+  "author": {
+    "name": "Stephen Handley",
+    "email": "stephen@hello10.com",
+    "url": "https://hello10.com"
+  },
+  "dependencies": {
+    "apollo-server-cloud-functions": "2.13.0",
+    "dataloader": "2.0.0",
+    "express": "4.17.1",
+    "firebase-admin": "8.11.0",
+    "firebase-functions": "3.6.1",
+    "graphql-tools": "5.0.0",
+    "lodash": "4.17.15"
+  },
+  "devDependencies": {
+    "@hello10/eslint-config": "1.0.2",
+    "firebase-functions-test": "0.2.1"
+  },
+  "scripts": {
+    "build": "yarn parcel build src/index.js --target node --detailed-report",
+    "clean": "rm -rf node_modules",
+    "lint": "eslint ./src"
+  }
+}

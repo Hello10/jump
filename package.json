@@ -1,0 +1,33 @@
+{
+  "name": "@hello10/jump",
+  "version": "1.0.0",
+  "license": "MIT",
+  "private": true,
+  "author": {
+    "name": "Stephen Handley",
+    "email": "stephen@hello10.com",
+    "url": "https://hello10.com"
+  },
+  "scripts": {
+    "bootstrap": "yarn && lerna bootstrap",
+    "rebootstrap": "yarn clean && yarn bootstrap",
+    "lint": "lerna exec --parallel -- yarn lint",
+    "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules",
+    "build": "lerna exec --parallel -- yarn build"
+  },
+  "workspaces": {
+    "packages": [
+      "packages/*"
+    ]
+  },
+  "devDependencies": {
+    "babel-eslint": "10.1.0",
+    "eslint": "6.8.0",
+    "eslint-config-airbnb-base": "14.1.0",
+    "eslint-plugin-import": "2.20.2",
+    "eslint-plugin-promise": "4.2.1",
+    "lerna": "3.20.2",
+    "parcel-bundler": "1.12.4"
+  },
+  "keywords": []
+}
