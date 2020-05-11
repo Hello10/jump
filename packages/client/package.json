@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-client",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Jump Client",
   "main": "dist/index.js",
   "license": "MIT",
@@ -28,5 +28,9 @@
     "build": "yarn parcel build src/index.js --target browser --detailed-report",
     "clean": "rm -rf node_modules",
     "lint": "eslint ./src"
-  }
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 Chrome version"
+  ]
 }
