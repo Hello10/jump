@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-client",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Jump Client",
   "main": "dist/index.js",
   "license": "MIT",
@@ -15,6 +15,7 @@
     "apollo-client": "2.6.8",
     "apollo-link-context": "1.0.20",
     "apollo-link-http": "1.5.17",
+    "babel-polyfill": "6.26.0",
     "firebase": "7.14.2",
     "graphql-tag": "2.10.3",
     "prop-types": "15.7.2",
@@ -30,7 +31,6 @@
     "lint": "eslint ./src"
   },
   "browserslist": [
-    "> 1%",
-    "last 2 Chrome versions"
+    "defaults"
   ]
 }
