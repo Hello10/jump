@@ -1,16 +1,16 @@
-import React, {
+import * as React from 'react';
+import {
   useEffect,
   useState
 } from 'react';
 import PropTypes from 'prop-types';
-import {useApolloClient} from '@apollo/react-hooks';
 
 export default function PageContainer ({
   Loading,
   Error,
-  match
+  match,
+  client
 }) {
-  const client = useApolloClient();
   const {params, route} = match;
   const {page: Page} = route;
 
@@ -73,5 +73,6 @@ export default function PageContainer ({
 PageContainer.propTypes = {
   Loading: PropTypes.func,
   Error: PropTypes.func,
-  match: PropTypes.object
+  match: PropTypes.object,
+  client: PropTypes.object
 };

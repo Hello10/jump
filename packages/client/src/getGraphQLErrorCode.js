@@ -1,7 +1,9 @@
+import get from 'lodash.get';
+
 export default function getGraphQLErrorCode (error) {
-  let code = error?.graphQLErrors?.[0]?.extensions?.code;
+  let code = get(error, 'graphQLErrors[0].extensions.code', null);
   if (!code) {
-    code = error?.networkError?.result?.errors?.[0]?.extensions?.code;
+    code = get(error, 'networkError.result.errors[0].extensions.code', null);
   }
   return code;
 }

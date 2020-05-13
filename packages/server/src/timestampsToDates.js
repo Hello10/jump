@@ -1,5 +1,8 @@
 export default function timestampsToDates (obj) {
-  const type = obj?.constructor.name;
+  if (!obj) {
+    return obj;
+  }
+  const type = obj.constructor.name;
   switch (type) {
     case 'Array':
       return obj.map(timestampsToDates);

@@ -1,11 +1,11 @@
-import React, {
+import * as React from 'react';
+import {
   createContext,
   useContext,
   useState,
   useEffect
 } from 'react';
 import PropTypes from 'prop-types';
-import {useApolloClient} from '@apollo/react-hooks';
 import Firebase from 'firebase/app';
 import 'firebase/auth';
 
@@ -13,11 +13,10 @@ import getGraphQLErrorCode from './getGraphQLErrorCode';
 
 const SessionContext = createContext();
 
-function SessionProvider ({children, SessionUser, Loading, popup = true}) {
+function SessionProvider ({client, children, SessionUser, Loading, popup = true}) {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(null);
   const [user, _setUser] = useState(new SessionUser(null));
-  const client = useApolloClient();
 
   function setUser (data) {
     const user = new SessionUser(data);
@@ -134,6 +133,7 @@ function SessionProvider ({children, SessionUser, Loading, popup = true}) {
 
 SessionProvider.propTypes = {
   children: PropTypes.func,
+  client: PropTypes.object,
   SessionUser: PropTypes.func,
   Loading: PropTypes.func,
   popup: PropTypes.bool

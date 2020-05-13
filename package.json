@@ -1,6 +1,6 @@
 {
-  "name": "@hello10/jump",
-  "version": "1.0.0",
+  "name": "@hello10/jump-monorepo",
+  "version": "x.y.z",
   "license": "MIT",
   "private": true,
   "author": {
@@ -10,10 +10,12 @@
   },
   "scripts": {
     "bootstrap": "yarn && lerna bootstrap",
-    "rebootstrap": "yarn clean && yarn bootstrap",
+    "build": "lerna exec --parallel -- yarn build",
+    "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules && rm yarn.lock",
     "lint": "lerna exec --parallel -- yarn lint",
-    "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules",
-    "build": "lerna exec --parallel -- yarn build"
+    "rebootstrap": "yarn clean && yarn bootstrap",
+    "rebuild": "yarn rebootstrap && yarn build",
+    "test": "lerna exec --parallel -- yarn test"
   },
   "workspaces": {
     "packages": [
@@ -27,7 +29,7 @@
     "eslint-plugin-import": "2.20.2",
     "eslint-plugin-promise": "4.2.1",
     "lerna": "3.20.2",
-    "parcel-bundler": "1.12.4"
+    "microbundle": "0.12.0"
   },
   "keywords": []
 }

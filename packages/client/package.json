@@ -1,34 +1,43 @@
 {
   "name": "@hello10/jump-client",
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Jump Client",
   "main": "dist/index.js",
+  "source": "src/index.js",
   "license": "MIT",
   "author": {
     "name": "Stephen Handley",
     "email": "stephen@hello10.com",
     "url": "https://hello10.com"
   },
+  "scripts": {
+    "build": "microbundle",
+    "clean": "rm -rf node_modules && rm -rf dist",
+    "dev": "microbundle watch",
+    "lint": "eslint ./src",
+    "test": "echo 'no tests'"
+  },
   "dependencies": {
-    "@apollo/react-hooks": "3.1.5",
     "apollo-cache-inmemory": "1.6.5",
     "apollo-client": "2.6.8",
     "apollo-link-context": "1.0.20",
     "apollo-link-http": "1.5.17",
     "babel-polyfill": "6.26.0",
-    "firebase": "7.14.2",
     "graphql-tag": "2.10.3",
-    "prop-types": "15.7.2",
-    "react": "16.13.1"
+    "lodash.get": "4.4.2",
+    "prop-types": "15.7.2"
   },
   "devDependencies": {
     "@hello10/eslint-config-react": "1.0.2",
-    "eslint-plugin-react": "7.19.0"
+    "eslint-plugin-react": "7.19.0",
+    "firebase": "7.14.2",
+    "react": "16.13.1",
+    "react-dom": "16.13.1"
   },
-  "scripts": {
-    "build": "yarn parcel build src/index.js --target browser --detailed-report",
-    "clean": "rm -rf node_modules",
-    "lint": "eslint ./src"
+  "peerDependencies": {
+    "firebase": ">=7.14.0",
+    "react": ">=16.8.0",
+    "react-dom": ">=16.8.0"
   },
   "browserslist": [
     "defaults"
