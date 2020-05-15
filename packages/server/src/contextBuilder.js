@@ -1,6 +1,4 @@
-import getUserIdFromToken from './getUserIdFromToken';
-
-export default function contextBuilder ({Collections, getToken, user_collection}) {
+export default function contextBuilder ({Admin, app, Collections, getToken, loadUserFromToken}) {
   return async ({req})=> {
     const loaders = {};
     function getLoader (arg) {
@@ -20,6 +18,8 @@ export default function contextBuilder ({Collections, getToken, user_collection}
       }
 
       return Collection.get({
+        Admin,
+        app,
         getCollection,
         getLoader
       });
@@ -27,26 +27,26 @@ export default function contextBuilder ({Collections, getToken, user_collection}
 
     let user_id = null;
     let user = null;
-    let auth_error = null;
+    let load_user_error = null;
 
     const token = getToken(req);
     if (token) {
       try {
-        const User = getCollection(user_collection);
-        user_id = await getUserIdFromToken(token);
-        user = await User.get({id: user_id});
+        ({user_id, user} = await loadUserFromToken({token, getCollection}));
       } catch (error) {
-        auth_error = error;
+        load_user_error = error;
       }
     }
 
     return {
+      Admin,
+      app,
       getCollection,
       getLoader,
-      auth_error,
       token,
       user_id,
-      user
+      user,
+      load_user_error
     };
   };
 }

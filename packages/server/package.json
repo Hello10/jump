@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-server",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "Jump Server",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -11,9 +11,9 @@
     "url": "https://hello10.com"
   },
   "scripts": {
-    "build": "microbundle",
+    "build": "microbundle --target node",
     "clean": "rm -rf node_modules && rm -rf dist",
-    "dev": "microbundle watch",
+    "dev": "microbundle watch --target node",
     "lint": "eslint ./src",
     "test": "echo 'no tests'"
   },
@@ -21,13 +21,10 @@
     "apollo-server-cloud-functions": "2.13.0",
     "dataloader": "2.0.0",
     "express": "4.17.1",
-    "firebase-admin": "8.11.0",
-    "firebase-functions": "3.6.1",
     "graphql-tools": "5.0.0",
     "lodash": "4.17.15"
   },
   "devDependencies": {
-    "@hello10/eslint-config": "1.0.2",
-    "firebase-functions-test": "0.2.1"
+    "@hello10/eslint-config": "1.0.2"
   }
 }

@@ -1,4 +1,3 @@
-import Admin from 'firebase-admin';
 import DataLoader from 'dataloader';
 import {omit, uniq, isNumber, isObject} from 'lodash';
 
@@ -10,7 +9,9 @@ export default class Collection {
     return new this(args);
   }
 
-  constructor ({getCollection, getLoader}) {
+  constructor ({Admin, app, getCollection, getLoader}) {
+    this.Admin = Admin;
+    this.app = app;
     this.getCollection = getCollection;
     this.getLoader = getLoader;
   }
@@ -19,12 +20,12 @@ export default class Collection {
     throw new Error('Collection child class must implement .name');
   }
 
-  get db () {
-    return Admin.firestore();
+  get auth () {
+    return this.app.auth();
   }
 
   get collection () {
-    return this.db.collection(this.name);
+    return this.app.firestore().collection(this.name);
   }
 
   doc (id) {
@@ -102,7 +103,7 @@ export default class Collection {
 
     const uniques = uniq(ids);
     const refs = uniques.map((id)=> this.doc(id));
-    const snaps = await this.db.getAll(refs);
+    const snaps = await this.firestore.getAll(refs);
     const docs = snaps.map((snap)=> this._snapToDoc(snap));
 
     const docs_by_id = {};
@@ -208,7 +209,7 @@ export default class Collection {
       return Promise.resolve();
     }
 
-    const batch = this.db.batch();
+    const batch = this.firestore.batch();
     for (const id of ids) {
       const ref = this.doc(id);
       batch.delete(ref);
@@ -221,11 +222,11 @@ export default class Collection {
   /////////////
 
   _timestampField () {
-    return Admin.firestore.FieldValue.serverTimestamp();
+    return this.Admin.firestore.FieldValue.serverTimestamp();
   }
 
   _deleteField () {
-    return Admin.firestore.FieldValue.delete();
+    return this.Admin.firestore.FieldValue.delete();
   }
 
   _snapToDoc (snap) {

@@ -1,25 +1,34 @@
-import * as Functions from 'firebase-functions';
 import {ApolloServer} from 'apollo-server-cloud-functions';
 
 import makeSchema from './makeSchema';
 import contextBuilder from './contextBuilder';
-import getTokenDefault from './getToken';
+
+function getTokenDefault (request) {
+  const header = request.get('Authorization');
+  const prefix = /^Bearer /;
+  if (header && header.match(prefix)) {
+    return header.replace(prefix, '');
+  } else {
+    return null;
+  }
+}
 
 export default function graphqlHandler ({
-  Schema,
-  Scalars,
-  Controllers,
+  Admin,
+  app,
+  buildContext,
   Collections,
-  context,
+  Controllers,
   getToken = getTokenDefault,
-  user_collection = 'User',
-  options = {}
+  loadUserFromToken,
+  options = {},
+  Scalars,
+  Schema
 }) {
-  if (!context) {
-    context = contextBuilder({Collections, getToken, user_collection});
+  if (!buildContext) {
+    buildContext = contextBuilder({Admin, app, Collections, getToken, loadUserFromToken});
   }
   const schema = makeSchema({Schema, Controllers, Scalars});
-  const server = new ApolloServer({schema, context});
-  const handler = server.createHandler(options);
-  return Functions.https.onRequest(handler);
+  const server = new ApolloServer({schema, context: buildContext});
+  return server.createHandler(options);
 }

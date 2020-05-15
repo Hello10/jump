@@ -2,8 +2,6 @@ import {isFunction} from 'lodash';
 import Logger from './Logger';
 import {
   GraphQLError,
-  ResolverMissingError,
-  ResolverAuthorizerMissingError,
   NotAuthorizedError
 } from './Errors';
 
@@ -95,19 +93,11 @@ export default class Controller {
           logger.debug(`Calling resolver ${path}`);
 
           try {
-            if (!resolver) {
-              throw new ResolverMissingError({path});
-            }
-
-            if (!authorizer) {
-              throw new ResolverAuthorizerMissingError({path});
-            }
-
             const params = {obj, args, context, info};
 
-            const {auth_error} = context;
-            if (auth_error) {
-              throw auth_error;
+            const {load_user_error} = context;
+            if (load_user_error) {
+              throw load_user_error;
             }
 
             const authorized = await authorizer.call(this, params);

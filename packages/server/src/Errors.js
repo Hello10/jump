@@ -1,8 +1,5 @@
 import {ApolloError} from 'apollo-server-cloud-functions';
 
-// TODO: remove once update eslint dep
-/*eslint max-classes-per-file: ["error", 100] */
-
 export class GraphQLError extends ApolloError {
   constructor ({
     code = 'GraphQLError',
@@ -32,26 +29,6 @@ export class DocumentDoesNotExistError extends GraphQLError {
   }
 }
 
-export class ResolverMissingError extends GraphQLError {
-  constructor (params) {
-    super({
-      code: 'ResolverMissing',
-      message: `Resolver missing: ${params.path}`,
-      params
-    });
-  }
-}
-
-export class ResolverAuthorizerMissingError extends GraphQLError {
-  constructor (params) {
-    super({
-      code: 'ResolverAuthorizerMissing',
-      message: `Resolver permission missing: ${params.path}`,
-      params
-    });
-  }
-}
-
 export class SessionUserNotFoundError extends GraphQLError {
   constructor (params) {
     super({
@@ -67,17 +44,6 @@ export class NotAuthorizedError extends GraphQLError {
     super({
       code: 'NotAuthorized',
       message: `Not authorized to access ${params.path}`,
-      params
-    });
-  }
-}
-
-export class AuthTokenError extends GraphQLError {
-  constructor (params) {
-    const {code, message} = params;
-    super({
-      code: 'AuthToken',
-      message: `Auth token error ${code}: ${message}`,
       params
     });
   }
