@@ -74,7 +74,7 @@ export default class Collection {
   async getOrAddById ({id, data, add = (x)=> x}) {
     let user = await this.get({id});
     if (!user) {
-      data = await add({id, data});
+      data = await add(data);
       user = await this.set({id, data, merge: false});
     }
     return user;
