@@ -198,10 +198,7 @@ class Collection {
     });
 
     if (!user) {
-      data = await add({
-        id,
-        data
-      });
+      data = await add(data);
       user = await this.set({
         id,
         data,
@@ -705,6 +702,7 @@ function contextBuilder({
           getCollection
         }));
       } catch (error) {
+        console.error(error);
         load_user_error = error;
       }
     }
@@ -745,6 +743,19 @@ function graphqlHandler({
   Scalars,
   Schema
 }) {
+  console.log('ok making graphql handler', {
+    Admin,
+    app,
+    buildContext,
+    Collections,
+    Controllers,
+    getToken,
+    loadUserFromToken,
+    options,
+    Scalars,
+    Schema
+  });
+
   if (!buildContext) {
     buildContext = contextBuilder({
       Admin,

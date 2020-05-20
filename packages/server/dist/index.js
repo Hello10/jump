@@ -227,10 +227,7 @@ class Collection {
       })).then(function (user) {
         const _temp = function () {
           if (!user) {
-            return Promise.resolve(add({
-              id,
-              data
-            })).then(function (_add2) {
+            return Promise.resolve(add(data)).then(function (_add2) {
               data = _add2;
               return Promise.resolve(_this4.set({
                 id,
@@ -843,6 +840,7 @@ function contextBuilder({
               } = _loadUserFromToken);
             });
           }, function (error) {
+            console.error(error);
             load_user_error = error;
           });
 
@@ -880,6 +878,19 @@ function graphqlHandler({
   Scalars,
   Schema
 }) {
+  console.log('ok making graphql handler', {
+    Admin,
+    app,
+    buildContext,
+    Collections,
+    Controllers,
+    getToken,
+    loadUserFromToken,
+    options,
+    Scalars,
+    Schema
+  });
+
   if (!buildContext) {
     buildContext = contextBuilder({
       Admin,

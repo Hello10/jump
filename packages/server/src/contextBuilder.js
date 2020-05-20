@@ -34,6 +34,7 @@ export default function contextBuilder ({Admin, app, Collections, getToken, load
       try {
         ({user_id, user} = await loadUserFromToken({token, getCollection}));
       } catch (error) {
+        console.error(error);
         load_user_error = error;
       }
     }
