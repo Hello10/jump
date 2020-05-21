@@ -878,19 +878,6 @@ function graphqlHandler({
   Scalars,
   Schema
 }) {
-  console.log('ok making graphql handler', {
-    Admin,
-    app,
-    buildContext,
-    Collections,
-    Controllers,
-    getToken,
-    loadUserFromToken,
-    options,
-    Scalars,
-    Schema
-  });
-
   if (!buildContext) {
     buildContext = contextBuilder({
       Admin,
