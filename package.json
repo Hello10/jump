@@ -12,6 +12,7 @@
     "bootstrap": "yarn && lerna bootstrap",
     "build": "lerna exec --parallel -- yarn build",
     "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules && rm yarn.lock",
+    "dev": "lerna exec --parallel -- yarn dev",
     "lint": "lerna exec --parallel -- yarn lint",
     "rebootstrap": "yarn clean && yarn bootstrap",
     "rebuild": "yarn rebootstrap && yarn build",
