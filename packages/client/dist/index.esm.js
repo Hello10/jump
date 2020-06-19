@@ -312,6 +312,19 @@ function getClient({
   return client;
 }
 
+function getSubdomain(hostname) {
+  const parts = hostname.split('.');
+  let last_index = -2;
+  const last = parts[parts.length - 1];
+  const is_localhost = last === 'localhost';
+
+  if (is_localhost) {
+    last_index = -1;
+  }
+
+  return parts.slice(0, last_index).join('.');
+}
+
 const config = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -458,16 +471,10 @@ function subdomainApps(map) {
   }
 
   return function getApp() {
-    const parts = window.location.hostname.split('.');
-    let last_index = -2;
-    const last = parts[parts.length - 1];
-    const is_localhost = last === 'localhost';
-
-    if (is_localhost) {
-      last_index = -1;
-    }
-
-    const subdomain = parts.slice(0, last_index).join('.');
+    const {
+      hostname
+    } = window.location;
+    const subdomain = getSubdomain(hostname);
 
     if (!subdomain) {
       return main.app;
@@ -485,5 +492,5 @@ function subdomainApps(map) {
   };
 }
 
-export { PageContainer, SessionConsumer, SessionContext, SessionProvider, config as firebaseConfig, getClient, getGraphQLErrorCode, subdomainApps, useSession, useSessionUser };
+export { PageContainer, SessionConsumer, SessionContext, SessionProvider, config as firebaseConfig, getClient, getGraphQLErrorCode, getSubdomain, subdomainApps, useSession, useSessionUser };
 //# sourceMappingURL=index.esm.js.map

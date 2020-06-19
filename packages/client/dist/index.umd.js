@@ -310,6 +310,19 @@
     return client;
   }
 
+  function getSubdomain(hostname) {
+    const parts = hostname.split('.');
+    let last_index = -2;
+    const last = parts[parts.length - 1];
+    const is_localhost = last === 'localhost';
+
+    if (is_localhost) {
+      last_index = -1;
+    }
+
+    return parts.slice(0, last_index).join('.');
+  }
+
   const config = {
     apiKey: process.env.FIREBASE_API_KEY,
     authDomain: process.env.FIREBASE_AUTH_DOMAIN,
@@ -456,16 +469,10 @@
     }
 
     return function getApp() {
-      const parts = window.location.hostname.split('.');
-      let last_index = -2;
-      const last = parts[parts.length - 1];
-      const is_localhost = last === 'localhost';
-
-      if (is_localhost) {
-        last_index = -1;
-      }
-
-      const subdomain = parts.slice(0, last_index).join('.');
+      const {
+        hostname
+      } = window.location;
+      const subdomain = getSubdomain(hostname);
 
       if (!subdomain) {
         return main.app;
@@ -490,6 +497,7 @@
   exports.firebaseConfig = config;
   exports.getClient = getClient;
   exports.getGraphQLErrorCode = getGraphQLErrorCode;
+  exports.getSubdomain = getSubdomain;
   exports.subdomainApps = subdomainApps;
   exports.useSession = useSession;
   exports.useSessionUser = useSessionUser;
