@@ -182,7 +182,6 @@ class Controller {
     this.exists = this._toCollection('exists');
     this.get = this._toCollection('get');
     this.list = this._toCollection('list');
-    this.delete = this._wrapCollection('delete');
     this.create = this._wrapToCollection('create');
     this.set = this._wrapToCollection('set');
     this.options = options;
@@ -315,6 +314,32 @@ class Controller {
     }
 
     return result;
+  }
+
+  async delete(request) {
+    if (this.beforeDelete) {
+      await this.beforeDelete(request);
+    }
+
+    const {
+      id
+    } = request.args;
+    const deleted = await this.delete({
+      id
+    });
+    const deleted_at = new Date();
+
+    if (this.afterDelete) {
+      await this.afterDelete({ ...request,
+        deleted,
+        deleted_at
+      });
+    }
+
+    return {
+      deleted_at,
+      deleted
+    };
   }
 
   _toCollection(method) {

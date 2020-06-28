@@ -214,7 +214,6 @@ class Controller {
     this.exists = this._toCollection('exists');
     this.get = this._toCollection('get');
     this.list = this._toCollection('list');
-    this.delete = this._wrapCollection('delete');
     this.create = this._wrapToCollection('create');
     this.set = this._wrapToCollection('set');
     this.options = options;
@@ -352,6 +351,51 @@ class Controller {
     return result;
   }
 
+  delete(request) {
+    try {
+      const _this2 = this;
+
+      function _temp4() {
+        const {
+          id
+        } = request.args;
+        return Promise.resolve(_this2.delete({
+          id
+        })).then(function (deleted) {
+          function _temp2() {
+            return {
+              deleted_at,
+              deleted
+            };
+          }
+
+          const deleted_at = new Date();
+
+          const _temp = function () {
+            if (_this2.afterDelete) {
+              return Promise.resolve(_this2.afterDelete(_extends({}, request, {
+                deleted,
+                deleted_at
+              }))).then(function () {});
+            }
+          }();
+
+          return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
+        });
+      }
+
+      const _temp3 = function () {
+        if (_this2.beforeDelete) {
+          return Promise.resolve(_this2.beforeDelete(request)).then(function () {});
+        }
+      }();
+
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
   _toCollection(method) {
     return request => {
       const collection = this.collection(request);
@@ -360,49 +404,49 @@ class Controller {
   }
 
   _wrapToCollection(method) {
-    const _this2 = this;
+    const _this3 = this;
 
     const cmethod = capitalize(method);
     const before = `before${cmethod}`;
     const after = `after${cmethod}`;
     return function (request) {
       try {
-        function _temp3() {
+        function _temp7() {
           return Promise.resolve(collection[method]({
             data
           })).then(function (doc) {
-            const _temp = function () {
-              if (_this2[after]) {
-                return Promise.resolve(_this2[after](_extends({}, request, {
+            const _temp5 = function () {
+              if (_this3[after]) {
+                return Promise.resolve(_this3[after](_extends({}, request, {
                   data,
                   doc
-                }))).then(function (_this2$after) {
-                  doc = _this2$after;
+                }))).then(function (_this3$after) {
+                  doc = _this3$after;
                 });
               }
             }();
 
-            return _temp && _temp.then ? _temp.then(function () {
+            return _temp5 && _temp5.then ? _temp5.then(function () {
               return doc;
             }) : doc;
           });
         }
 
-        const collection = _this2.collection(request);
+        const collection = _this3.collection(request);
 
         let {
           data
         } = request.args;
 
-        const _temp2 = function () {
-          if (_this2[before]) {
-            return Promise.resolve(_this2[before](request)).then(function (_this2$before) {
-              data = _this2$before;
+        const _temp6 = function () {
+          if (_this3[before]) {
+            return Promise.resolve(_this3[before](request)).then(function (_this3$before) {
+              data = _this3$before;
             });
           }
         }();
 
-        return Promise.resolve(_temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2));
+        return Promise.resolve(_temp6 && _temp6.then ? _temp6.then(_temp7) : _temp7(_temp6));
       } catch (e) {
         return Promise.reject(e);
       }
