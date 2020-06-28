@@ -1,7 +1,9 @@
 import DataLoader from 'dataloader';
-import { omit, uniq, isObject, isNumber, isFunction, merge } from 'lodash';
+import { isFunction, omit, uniq, isObject, isNumber, merge } from 'lodash';
+import Logger from '@hello10/logger';
 import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
 import { makeExecutableSchema } from 'graphql-tools';
+import makeDebug from 'debug';
 
 function isExisting({
   context
@@ -24,29 +26,106 @@ var Authorizers = {
   isPublic: isPublic
 };
 
-function timestampsToDates(obj) {
-  if (!obj) {
-    return obj;
+class Collection {
+  static get(args) {
+    return new this(args);
   }
 
-  const type = obj.constructor.name;
-
-  switch (type) {
-    case 'Array':
-      return obj.map(timestampsToDates);
-
-    case 'Object':
-      return Object.keys(obj).reduce((result, k) => {
-        result[k] = timestampsToDates(obj[k]);
-        return result;
-      }, {});
-
-    case 'Timestamp':
-      return obj.toDate();
-
-    default:
-      return obj;
+  get name() {
+    throw new Error('Collection child class must implement .name');
   }
+
+  get collection() {
+    throw new Error('Collection child class must implement .collection');
+  }
+
+  get loader() {
+    return new DataLoader(ids => {
+      return this.getMany({
+        ids
+      });
+    });
+  }
+
+  create() {
+    throw new Error('Collection child class must implement .create');
+  }
+
+  exists() {
+    throw new Error('Collection child class must implement .exists');
+  }
+
+  get() {
+    throw new Error('Collection child class must implement .get');
+  }
+
+  getSafe({
+    id
+  }) {
+    return this.get({
+      id,
+      safe: true
+    });
+  }
+
+  getMany() {
+    throw new Error('Collection child class must implement .getMany');
+  }
+
+  getManySafe({
+    ids
+  }) {
+    return this.getMany({
+      ids,
+      safe: true
+    });
+  }
+
+  find() {}
+
+  set() {
+    throw new Error('Collection child class must implement .set');
+  }
+
+  setSafe({
+    id,
+    data
+  }) {
+    return this.setMany({
+      id,
+      data,
+      safe: true
+    });
+  }
+
+  merge() {
+    throw new Error('Collection child class must implement .merge');
+  }
+
+  mergeSafe({
+    id,
+    data
+  }) {
+    return this.merge({
+      id,
+      data,
+      safe: true
+    });
+  }
+
+  delete() {
+    throw new Error('Collection child class must implement .delete');
+  }
+
+  deleteSafe({
+    id
+  }) {
+    return this.delete({
+      id,
+      safe: true
+    });
+  }
+
 }
 
 class GraphQLError extends ApolloError {
@@ -93,25 +172,271 @@ class NotAuthorizedError extends GraphQLError {
 
 }
 
-class Collection {
-  static get(args) {
-    return new this(args);
+function capitalize(str) {
+  return str[0].toUpperCase() + str.slice(1);
+}
+
+const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
+class Controller {
+  constructor(options) {
+    this.exists = this._toCollection('exists');
+    this.get = this._toCollection('get');
+    this.list = this._toCollection('list');
+    this.delete = this._wrapCollection('delete');
+    this.create = this._wrapToCollection('create');
+    this.set = this._wrapToCollection('set');
+    this.options = options;
+    let {
+      logger
+    } = options;
+
+    if (!logger) {
+      logger = new Logger('jump:controller');
+    }
+
+    this.logger = logger;
   }
 
+  get name() {
+    throw new Error('Child class must implement .name');
+  }
+
+  static resolvers() {
+    throw new Error('Child class must implement .resolvers');
+  }
+
+  collection({
+    context,
+    name
+  }) {
+    return context.getCollection(name || this.name);
+  }
+
+  loader({
+    context,
+    name
+  }) {
+    return context.getLoader(name || this.name);
+  }
+
+  expose() {
+    var _this = this;
+
+    const {
+      logger
+    } = this;
+    const result = {};
+    const groups = this.resolvers();
+
+    for (const [type, group] of Object.entries(groups)) {
+      if (!(type in result)) {
+        result[type] = {};
+      }
+
+      for (const [name, definition] of Object.entries(group)) {
+        const path = `${type}.${name}`;
+
+        if (name === APOLLO_UNION_RESOLVER_NAME) {
+          result[type][name] = (obj, context, info) => {
+            return definition.call(this, {
+              obj,
+              context,
+              info
+            });
+          };
+
+          continue;
+        }
+
+        for (const field of ['authorizer', 'resolver']) {
+          if (!isFunction(definition[field])) {
+            throw new Error(`Invalid ${field} definition for ${path}`);
+          }
+        }
+
+        const {
+          resolver,
+          authorizer
+        } = definition;
+
+        result[type][name] = async function (obj, args, context, info) {
+          logger.debug(`Calling resolver ${path}`);
+
+          try {
+            const {
+              user
+            } = context;
+            const params = {
+              obj,
+              args,
+              context,
+              info,
+              user
+            };
+            const {
+              load_user_error
+            } = context;
+
+            if (load_user_error) {
+              throw load_user_error;
+            }
+
+            const res_logger = logger.child({
+              resolver: name,
+              type,
+              user
+            });
+            const authorized = await authorizer.call(_this, params);
+
+            if (!authorized) {
+              const error = new NotAuthorizedError({
+                path
+              });
+              res_logger.error(error);
+              throw error;
+            }
+
+            res_logger.info('Calling resolver', {
+              obj,
+              args
+            });
+            return resolver.call(_this, params);
+          } catch (error) {
+            if (error.expected) {
+              logger.error('Expected GraphQL error', error);
+              throw error;
+            } else {
+              logger.error('Unexpected GraphQL error', error);
+              throw new GraphQLError();
+            }
+          }
+        };
+      }
+    }
+
+    return result;
+  }
+
+  _toCollection(method) {
+    return request => {
+      const collection = this.collection(request);
+      return collection[method](request.args);
+    };
+  }
+
+  _wrapToCollection(method) {
+    var _this2 = this;
+
+    const cmethod = capitalize(method);
+    const before = `before${cmethod}`;
+    const after = `after${cmethod}`;
+    return async function (request) {
+      const collection = _this2.collection(request);
+
+      let {
+        data
+      } = request.args;
+
+      if (_this2[before]) {
+        data = await _this2[before](request);
+      }
+
+      let doc = await collection[method]({
+        data
+      });
+
+      if (_this2[after]) {
+        doc = await _this2[after]({ ...request,
+          data,
+          doc
+        });
+      }
+
+      return doc;
+    };
+  }
+
+  load({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const id = obj[field];
+      return id ? loader.load(id) : null;
+    };
+  }
+
+  loadMany({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const ids = obj[field];
+      return ids.length ? loader.loadMany(ids) : [];
+    };
+  }
+
+  resolveType(getType) {
+    return ({
+      obj,
+      info
+    }) => {
+      const type = getType(obj);
+      return info.schema.getType(type);
+    };
+  }
+
+  stub() {
+    throw new Error('Unimplemented stub');
+  }
+
+}
+
+function timestampsToDates(obj) {
+  if (!obj) {
+    return obj;
+  }
+
+  const type = obj.constructor.name;
+
+  switch (type) {
+    case 'Array':
+      return obj.map(timestampsToDates);
+
+    case 'Object':
+      return Object.keys(obj).reduce((result, k) => {
+        result[k] = timestampsToDates(obj[k]);
+        return result;
+      }, {});
+
+    case 'Timestamp':
+      return obj.toDate();
+
+    default:
+      return obj;
+  }
+}
+
+class FirestoreCollection extends Collection {
   constructor({
     Admin,
     app,
     getCollection,
     getLoader
   }) {
+    super();
     this.Admin = Admin;
     this.app = app;
     this.getCollection = getCollection;
     this.getLoader = getLoader;
-  }
-
-  get name() {
-    throw new Error('Collection child class must implement .name');
   }
 
   get auth() {
@@ -124,14 +449,6 @@ class Collection {
 
   doc(id) {
     return this.collection.doc(id);
-  }
-
-  get loader() {
-    return new DataLoader(ids => {
-      return this.getMany({
-        ids
-      });
-    });
   }
 
   async add({
@@ -209,7 +526,9 @@ class Collection {
     return user;
   }
 
-  async exists(id) {
+  async exists({
+    id
+  }) {
     const ref = this.doc(id);
     const snap = await ref.get();
     return snap.exists;
@@ -217,18 +536,29 @@ class Collection {
 
   async get({
     id,
-    assert = false
+    safe = false
   }) {
     const ref = this.doc(id);
     const snap = await ref.get();
 
-    if (assert && !snap.exists) {
-      const error = this._doesNotExistError(id);
-
-      throw error;
+    if (safe && !snap.exists) {
+      const type = this.name();
+      throw new DocumentDoesNotExistError({
+        type,
+        id
+      });
     }
 
     return this._snapToDoc(snap);
+  }
+
+  async getAssert({
+    id
+  }) {
+    return this.get({
+      id,
+      safe: true
+    });
   }
 
   async getMany({
@@ -395,14 +725,6 @@ class Collection {
     }
   }
 
-  _doesNotExistError(id) {
-    const type = this.name();
-    return new DocumentDoesNotExistError({
-      type,
-      id
-    });
-  }
-
   _id() {
     const ref = this.collection.doc();
     return ref.id;
@@ -410,234 +732,19 @@ class Collection {
 
 }
 
-class Logger {
-  child() {
-    return this;
-  }
-
-}
-const levels = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
-
-for (const level of levels) {
-  Logger.prototype[level] = function log(...args) {
-    const {
-      console
-    } = global;
-    const log = level in console ? console[level] : console.log;
-    return log.call(console, ...args);
-  };
-}
-
-const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
-class Controller {
-  constructor({
-    logger
-  } = {}) {
-    if (!logger) {
-      logger = new Logger();
-    }
-
-    this.logger = logger;
-  }
-
-  get name() {
-    throw new Error('Child class must implement .name');
-  }
-
-  resolvers() {
-    throw new Error('Child class must implement .resolvers');
-  }
-
-  collection({
-    context,
-    name
-  }) {
-    return context.getCollection(name || this.name);
-  }
-
-  loader({
-    context,
-    name
-  }) {
-    return context.getLoader(name || this.name);
-  }
-
-  expose() {
-    var _this = this;
-
-    const result = {};
-    const {
-      logger
-    } = this;
-    const groups = this.resolvers();
-
-    for (const [type, group] of Object.entries(groups)) {
-      if (!(type in result)) {
-        result[type] = {};
-      }
-
-      for (const [name, definition] of Object.entries(group)) {
-        const path = `${type}.${name}`;
-
-        if (name === APOLLO_UNION_RESOLVER_NAME) {
-          result[type][name] = (obj, context, info) => {
-            return definition.call(this, {
-              obj,
-              context,
-              info
-            });
-          };
-
-          continue;
-        }
-
-        const {
-          resolver,
-          authorizer
-        } = definition;
-        const valid = [resolver, authorizer].every(isFunction);
-
-        if (!valid) {
-          throw new Error(`Invalid resolver definition for ${path}`);
-        }
-
-        result[type][name] = async function (obj, args, context, info) {
-          logger.debug(`Calling resolver ${path}`);
-
-          try {
-            const params = {
-              obj,
-              args,
-              context,
-              info
-            };
-            const {
-              load_user_error
-            } = context;
-
-            if (load_user_error) {
-              throw load_user_error;
-            }
-
-            const authorized = await authorizer.call(_this, params);
-
-            if (!authorized) {
-              throw new NotAuthorizedError({
-                path
-              });
-            }
-
-            return resolver.call(_this, params);
-          } catch (error) {
-            if (error.expected) {
-              logger.error(error, 'Expected GraphQL error');
-              throw error;
-            } else {
-              logger.error(error, 'Unexpected GraphQL error');
-              throw new GraphQLError();
-            }
-          }
-        };
-      }
-    }
-
-    return result;
-  }
-
-  get(request) {
-    const collection = this.collection(request);
-    return collection.get(request.args);
-  }
-
-  list(request) {
-    const collection = this.collection(request);
-    return collection.list(request.args);
-  }
-
-  create(request) {
-    const collection = this.collection(request);
-    const {
-      data
-    } = request.args;
-    return collection.add(data);
-  }
-
-  update(request) {
-    const collection = this.collection(request);
-    const {
-      id,
-      data
-    } = request.args;
-    return collection.set({
-      id,
-      data
-    });
-  }
-
-  delete(request) {
-    const collection = this.collection(request);
-    const {
-      id
-    } = request.args;
-    return collection.delete({
-      id
-    });
-  }
-
-  load({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
-      return id ? loader.load(id) : null;
-    };
-  }
-
-  loadMany({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
-      return ids.length ? loader.loadMany(ids) : [];
-    };
-  }
-
-  resolveType(getType) {
-    return ({
-      obj,
-      info
-    }) => {
-      const type = getType(obj);
-      return info.schema.getType(type);
-    };
-  }
-
-  stub() {
-    throw new Error('Unimplemented stub');
-  }
-
-}
+const debug = makeDebug('jump');
 
 function makeSchema({
   Schema,
   Controllers,
-  Scalars
+  Scalars,
+  options
 }) {
   const resolvers = {};
 
   for (const [name, Controller] of Object.entries(Controllers)) {
-    console.log(`Exposing controller ${name}`);
-    const controller = new Controller();
+    debug(`Exposing controller ${name}`);
+    const controller = new Controller(options);
     merge(resolvers, controller.expose());
   }
 
@@ -649,11 +756,10 @@ function makeSchema({
 }
 
 function contextBuilder({
-  Admin,
-  app,
   Collections,
   getToken,
-  loadUserFromToken
+  loadUserFromToken,
+  options
 }) {
   return async ({
     req
@@ -680,10 +786,9 @@ function contextBuilder({
       }
 
       return Collection.get({
-        Admin,
-        app,
         getCollection,
-        getLoader
+        getLoader,
+        ...options
       });
     }
 
@@ -708,14 +813,13 @@ function contextBuilder({
     }
 
     return {
-      Admin,
-      app,
       getCollection,
       getLoader,
       token,
       user_id,
       user,
-      load_user_error
+      load_user_error,
+      ...options
     };
   };
 }
@@ -732,21 +836,23 @@ function getTokenDefault(request) {
 }
 
 function graphqlHandler({
-  Admin,
-  app,
-  buildContext,
   Collections,
   Controllers,
+  Scalars,
+  Schema,
   getToken = getTokenDefault,
   loadUserFromToken,
-  options = {},
-  Scalars,
-  Schema
+  options = {}
 }) {
-  if (!buildContext) {
-    buildContext = contextBuilder({
-      Admin,
-      app,
+  const {
+    server: opts_server = {},
+    handler: opts_handler = {},
+    context: opts_context = {}
+  } = options;
+
+  if (!opts_server.context) {
+    opts_server.context = contextBuilder({
+      options: opts_context,
       Collections,
       getToken,
       loadUserFromToken
@@ -754,16 +860,16 @@ function graphqlHandler({
   }
 
   const schema = makeSchema({
+    options: opts_context,
     Schema,
     Controllers,
     Scalars
   });
-  const server = new ApolloServer({
-    schema,
-    context: buildContext
+  const server = new ApolloServer({ ...opts_server,
+    schema
   });
-  return server.createHandler(options);
+  return server.createHandler(opts_handler);
 }
 
-export { Authorizers, Collection, Controller, GraphQLError, graphqlHandler };
+export { Authorizers, Collection, Controller, FirestoreCollection, GraphQLError, graphqlHandler };
 //# sourceMappingURL=index.modern.js.map

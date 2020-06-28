@@ -7,3 +7,4 @@ export {default as getSubdomain} from './getSubdomain';
 export {default as firebaseConfig} from './firebaseConfig';
 export {default as PageContainer} from './PageContainer';
 export {default as subdomainApps} from './subdomainApps';
+export {default as useRouter} from './useRouter';

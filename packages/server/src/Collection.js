@@ -1,35 +1,16 @@
 import DataLoader from 'dataloader';
-import {omit, uniq, isNumber, isObject} from 'lodash';
-
-import timestampsToDates from './timestampsToDates';
-import {DocumentDoesNotExistError} from './Errors';
 
 export default class Collection {
   static get (args) {
     return new this(args);
   }
 
-  constructor ({Admin, app, getCollection, getLoader}) {
-    this.Admin = Admin;
-    this.app = app;
-    this.getCollection = getCollection;
-    this.getLoader = getLoader;
-  }
-
   get name () {
     throw new Error('Collection child class must implement .name');
   }
 
-  get auth () {
-    return this.app.auth();
-  }
-
   get collection () {
-    return this.app.firestore().collection(this.name);
-  }
-
-  doc (id) {
-    return this.collection.doc(id);
+    throw new Error('Collection child class must implement .collection');
   }
 
   get loader () {
@@ -41,211 +22,59 @@ export default class Collection {
   //////////
   // CRUD //
   //////////
-  async add ({data}) {
-    data = omit(data, 'id');
-    const timestamp = this._timestampField();
-    data.created_at = timestamp;
-    data.updated_at = timestamp;
-    const ref = await this.collection.add(data);
-    data.id = ref.id;
-    return data;
+
+  // TODO: generalize the safe thing derp
+
+
+  create (/* {data} */) {
+    throw new Error('Collection child class must implement .create');
   }
 
-  async set ({id, data, merge = true}) {
-    data = omit(data, 'id');
-    data.updated_at = this._timestampField();
-    const ref = this.doc(id);
-    await ref.set(data, {merge});
-    return this.get({id});
+  exists (/* {id} */) {
+    throw new Error('Collection child class must implement .exists');
   }
 
-  async addOrSetByField ({field, data, add = (x)=> x}) {
-    const value = data[field];
-    const doc = await this.findOneByField(field)(value);
-    if (doc) {
-      const {id} = doc;
-      return this.set({id, data});
-    } else {
-      data = await add(data);
-      return this.add({data});
-    }
+  get (/* {id, safe = false} */) {
+    throw new Error('Collection child class must implement .get');
   }
 
-  async getOrAddById ({id, data, add = (x)=> x}) {
-    let user = await this.get({id});
-    if (!user) {
-      data = await add(data);
-      user = await this.set({id, data, merge: false});
-    }
-    return user;
+  getSafe ({id}) {
+    return this.get({id, safe: true});
   }
 
-  async exists (id) {
-    const ref = this.doc(id);
-    const snap = await ref.get();
-    return snap.exists;
+  getMany (/* {ids, safe = false} */) {
+    throw new Error('Collection child class must implement .getMany');
   }
 
-  async get ({id, assert = false}) {
-    const ref = this.doc(id);
-    const snap = await ref.get();
-    if (assert && !snap.exists) {
-      const error = this._doesNotExistError(id);
-      throw error;
-    }
-    return this._snapToDoc(snap);
+  getManySafe ({ids}) {
+    return this.getMany({ids, safe: true});
   }
 
-  async getMany ({ids}) {
-    if (!ids || ids.length === 0) {
-      return [];
-    }
-
-    const uniques = uniq(ids);
-    const refs = uniques.map((id)=> this.doc(id));
-    const snaps = await this.firestore.getAll(refs);
-    const docs = snaps.map((snap)=> this._snapToDoc(snap));
-
-    const docs_by_id = {};
-    for (const doc of docs) {
-      if (doc) {
-        docs_by_id[doc.id] = doc;
-      }
-    }
-
-    return ids.map((id)=> {
-      return (id in docs_by_id) ? docs_by_id[id] : null;
-    });
+  find () {
+    // TODO:
   }
 
-  async find ({where, limit, order_by, select} = {}) {
-    let query = this.collection;
-
-    function invalid (field) {
-      throw new Error(`Invalid ${field} for find`);
-    }
-
-    if (where) {
-      let parts;
-      if (isObject(where)) {
-        parts = Object.entries(where).map(([field, value])=> {
-          return [field, '==', value];
-        });
-      } else if (Array.isArray(where)) {
-        parts = Array.isArray(where[0]) ? where : [where];
-      } else {
-        invalid('where');
-      }
-
-      for (const part of parts) {
-        if (part.length !== 3) {
-          invalid('where');
-        }
-        const [field, op, value] = part;
-        query = query.where(field, op, value);
-      }
-    }
-
-    if (order_by) {
-      if (!Array.isArray(order_by)) {
-        order_by = [order_by];
-      }
-      query = query.orderBy(...order_by);
-    }
-
-
-    if (limit) {
-      if (!isNumber(limit)) {
-        invalid('limit');
-      }
-      query = query.limit(limit);
-    }
-
-    if (select) {
-      if (!Array.isArray(select)) {
-        invalid('select');
-      }
-      query = query.select(...select);
-    }
-
-    const snap = await query.get();
-    return snap.docs.map(this._snapToDoc);
+  set (/* {id, data, safe = false} */) {
+    throw new Error('Collection child class must implement .set');
   }
 
-  async findOne ({where, order_by, select}) {
-    const docs = await this.find({
-      limit: 1,
-      where,
-      order_by,
-      select
-    });
-    return (docs.length > 0) ? docs[0] : null;
+  setSafe ({id, data}) {
+    return this.setMany({id, data, safe: true});
   }
 
-  findOneByField (field) {
-    return (value)=> {
-      return this.findOne({
-        where: [field, '==', value]
-      });
-    };
+  merge (/* {id, data, safe = false} */) {
+    throw new Error('Collection child class must implement .merge');
   }
 
-  async delete ({id, ids, where}) {
-    if (id) {
-      const ref = this.doc(id);
-      return ref.delete();
-    }
-
-    if (ids && where) {
-      throw new Error('Delete call should pass ids or where not both');
-    }
-
-    if (where) {
-      const docs = await this.find({where});
-      ids = docs.map(({id})=> id);
-    }
-
-    if (ids.length === 0) {
-      return Promise.resolve();
-    }
-
-    const batch = this.firestore.batch();
-    for (const id of ids) {
-      const ref = this.doc(id);
-      batch.delete(ref);
-    }
-    return batch.commit();
+  mergeSafe ({id, data}) {
+    return this.merge({id, data, safe: true});
   }
 
-  /////////////
-  // Helpers //
-  /////////////
-
-  _timestampField () {
-    return this.Admin.firestore.FieldValue.serverTimestamp();
+  delete (/* {id, safe = false} */) {
+    throw new Error('Collection child class must implement .delete');
   }
 
-  _deleteField () {
-    return this.Admin.firestore.FieldValue.delete();
-  }
-
-  _snapToDoc (snap) {
-    if (snap.exists) {
-      const data = snap.data();
-      data.id = snap.id;
-      return timestampsToDates(data);
-    } else {
-      return null;
-    }
-  }
-
-  _doesNotExistError (id) {
-    const type = this.name();
-    return new DocumentDoesNotExistError({type, id});
-  }
-
-  _id () {
-    const ref = this.collection.doc();
-    return ref.id;
+  deleteSafe ({id}) {
+    return this.delete({id, safe: true});
   }
 }

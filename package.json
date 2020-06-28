@@ -8,21 +8,6 @@
     "email": "stephen@hello10.com",
     "url": "https://hello10.com"
   },
-  "scripts": {
-    "bootstrap": "yarn && lerna bootstrap",
-    "build": "lerna exec --parallel -- yarn build",
-    "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules && rm yarn.lock",
-    "dev": "lerna exec --parallel -- yarn dev",
-    "lint": "lerna exec --parallel -- yarn lint",
-    "rebootstrap": "yarn clean && yarn bootstrap",
-    "rebuild": "yarn rebootstrap && yarn build",
-    "test": "lerna exec --parallel -- yarn test"
-  },
-  "workspaces": {
-    "packages": [
-      "packages/*"
-    ]
-  },
   "devDependencies": {
     "babel-eslint": "10.1.0",
     "eslint": "6.8.0",
@@ -31,6 +16,22 @@
     "eslint-plugin-promise": "4.2.1",
     "lerna": "3.20.2",
     "microbundle": "0.12.0"
+  },
+  "scripts": {
+    "bootstrap": "yarn && lerna bootstrap",
+    "build": "lerna exec --parallel -- yarn build",
+    "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules && rm -f yarn.lock",
+    "dev": "lerna exec --parallel -- yarn dev",
+    "lint": "lerna exec --parallel -- yarn lint",
+    "link:setup": "lerna exec --parallel -- yarn link && lerna exec --scope @hello10/jump-client -- yarn link @hello10/react-hooks",
+    "rebootstrap": "yarn clean && yarn bootstrap",
+    "rebuild": "yarn rebootstrap && yarn build",
+    "test": "lerna exec --parallel -- yarn test"
+  },
+  "workspaces": {
+    "packages": [
+      "packages/*"
+    ]
   },
   "keywords": []
 }

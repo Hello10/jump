@@ -14,21 +14,36 @@ function getTokenDefault (request) {
 }
 
 export default function graphqlHandler ({
-  Admin,
-  app,
-  buildContext,
   Collections,
   Controllers,
+  Scalars,
+  Schema,
   getToken = getTokenDefault,
   loadUserFromToken,
-  options = {},
-  Scalars,
-  Schema
+  options = {}
 }) {
-  if (!buildContext) {
-    buildContext = contextBuilder({Admin, app, Collections, getToken, loadUserFromToken});
+  const {
+    server: opts_server = {},
+    handler: opts_handler = {},
+    context: opts_context = {}
+  } = options;
+
+  if (!opts_server.context) {
+    opts_server.context = contextBuilder({
+      options: opts_context,
+      Collections,
+      getToken,
+      loadUserFromToken
+    });
   }
-  const schema = makeSchema({Schema, Controllers, Scalars});
-  const server = new ApolloServer({schema, context: buildContext});
-  return server.createHandler(options);
+
+  const schema = makeSchema({
+    options: opts_context,
+    Schema,
+    Controllers,
+    Scalars
+  });
+
+  const server = new ApolloServer({...opts_server, schema});
+  return server.createHandler(opts_handler);
 }

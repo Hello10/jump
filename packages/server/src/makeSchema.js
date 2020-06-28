@@ -1,11 +1,17 @@
 import {makeExecutableSchema} from 'graphql-tools';
 import {merge} from 'lodash';
 
-export default function makeSchema ({Schema, Controllers, Scalars}) {
+import debug from './debug';
+
+export default function makeSchema ({Schema, Controllers, Scalars, options}) {
   const resolvers = {};
   for (const [name, Controller] of Object.entries(Controllers)) {
-    console.log(`Exposing controller ${name}`);
-    const controller = new Controller();
+    debug(`Exposing controller ${name}`);
+    const controller = new Controller(options);
+    // TODO: shouldn't need to instantiate each controller per request,
+    // just figure out the dispatch and then instantiate on demand unless
+    // there's some memoization that can be done between requests.
+    // Super Bonus (whole why): context becomes part of this instead of a var
     merge(resolvers, controller.expose());
   }
   merge(resolvers, Scalars);

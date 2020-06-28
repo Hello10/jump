@@ -1,16 +1,23 @@
 import {isFunction} from 'lodash';
-import Logger from './Logger';
+import Logger from '@hello10/logger';
 import {
   GraphQLError,
   NotAuthorizedError
 } from './Errors';
 
+// to: helpers
+function capitalize (str) {
+  return str[0].toUpperCase() + str.slice(1);
+}
+
 const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
 
 export default class Controller {
-  constructor ({logger} = {}) {
+  constructor (options) {
+    this.options = options;
+    let {logger} = options;
     if (!logger) {
-      logger = new Logger();
+      logger = new Logger('jump:controller');
     }
     this.logger = logger;
   }
@@ -19,7 +26,7 @@ export default class Controller {
     throw new Error('Child class must implement .name');
   }
 
-  resolvers () {
+  static resolvers () {
     // Child class should implement this method and return
     // an object with this shape:
     //
@@ -61,8 +68,9 @@ export default class Controller {
   }
 
   expose () {
-    const result = {};
     const {logger} = this;
+
+    const result = {};
 
     const groups = this.resolvers();
     for (const [type, group] of Object.entries(groups)) {
@@ -82,36 +90,57 @@ export default class Controller {
           continue;
         }
 
-        const {resolver, authorizer} = definition;
+        // This seems like a dumb idea unless there's some dynmamic thing that
+        // is difficult to do without this..
+        // let the resolvers and permission be specified as strings
+        // for (const [k, v] of Object.entries(config)) {
+        //   if (Type(v, String)) {
+        //     config[k] = this[v];
+        //   }
+        // }
 
-        const valid = [resolver, authorizer].every(isFunction);
-        if (!valid) {
-          throw new Error(`Invalid resolver definition for ${path}`);
+        for (const field of ['authorizer', 'resolver']) {
+          if (!isFunction(definition[field])) {
+            throw new Error(`Invalid ${field} definition for ${path}`);
+          }
         }
 
+        const {resolver, authorizer} = definition;
         result[type][name] = async (obj, args, context, info)=> {
           logger.debug(`Calling resolver ${path}`);
 
           try {
-            const params = {obj, args, context, info};
+            const {user} = context;
+            const params = {obj, args, context, info, user};
 
+            // Have to handle this explicitly, would be better to have
+            // this in context build derp meh
             const {load_user_error} = context;
             if (load_user_error) {
               throw load_user_error;
             }
 
+            const res_logger = logger.child({
+              resolver: name,
+              type,
+              user
+            });
+
             const authorized = await authorizer.call(this, params);
             if (!authorized) {
-              throw new NotAuthorizedError({path});
+              const error = new NotAuthorizedError({path});
+              res_logger.error(error);
+              throw error;
             }
 
+            res_logger.info('Calling resolver', {obj, args});
             return resolver.call(this, params);
           } catch (error) {
             if (error.expected) {
-              logger.error(error, 'Expected GraphQL error');
+              logger.error('Expected GraphQL error', error);
               throw error;
             } else {
-              logger.error(error, 'Unexpected GraphQL error');
+              logger.error('Unexpected GraphQL error', error);
               throw new GraphQLError();
             }
           }
@@ -125,33 +154,42 @@ export default class Controller {
   ///////////////////////
   // Generic Resolvers //
   ///////////////////////
+  // Delegate all the reads derp
+  // TODO: move to loop at end adding to proto
+  exists = this._toCollection('exists');
+  get = this._toCollection('get');
+  list = this._toCollection('list');
+  delete = this._wrapCollection('delete');
+  create = this._wrapToCollection('create')
+  set = this._wrapToCollection('set');
 
-  get (request) {
-    const collection = this.collection(request);
-    return collection.get(request.args);
+  _toCollection (method) {
+    return (request)=> {
+      const collection = this.collection(request);
+      return collection[method](request.args);
+    };
   }
 
-  list (request) {
-    const collection = this.collection(request);
-    return collection.list(request.args);
-  }
+  _wrapToCollection (method) {
+    const cmethod = capitalize(method);
+    const before = `before${cmethod}`;
+    const after = `after${cmethod}`;
 
-  create (request) {
-    const collection = this.collection(request);
-    const {data} = request.args;
-    return collection.add(data);
-  }
+    return async (request)=> {
+      const collection = this.collection(request);
 
-  update (request) {
-    const collection = this.collection(request);
-    const {id, data} = request.args;
-    return collection.set({id, data});
-  }
+      let {data} = request.args;
+      if (this[before]) {
+        data = await this[before](request);
+      }
 
-  delete (request) {
-    const collection = this.collection(request);
-    const {id} = request.args;
-    return collection.delete({id});
+      let doc = await collection[method]({data});
+      if (this[after]) {
+        doc = await this[after]({...request, data, doc});
+      }
+
+      return doc;
+    };
   }
 
   load ({collection, field}) {

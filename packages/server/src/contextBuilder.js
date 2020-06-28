@@ -1,4 +1,9 @@
-export default function contextBuilder ({Admin, app, Collections, getToken, loadUserFromToken}) {
+export default function contextBuilder ({
+  Collections,
+  getToken,
+  loadUserFromToken,
+  options
+}) {
   return async ({req})=> {
     const loaders = {};
     function getLoader (arg) {
@@ -18,10 +23,9 @@ export default function contextBuilder ({Admin, app, Collections, getToken, load
       }
 
       return Collection.get({
-        Admin,
-        app,
         getCollection,
-        getLoader
+        getLoader,
+        ...options
       });
     }
 
@@ -40,14 +44,13 @@ export default function contextBuilder ({Admin, app, Collections, getToken, load
     }
 
     return {
-      Admin,
-      app,
       getCollection,
       getLoader,
       token,
       user_id,
       user,
-      load_user_error
+      load_user_error,
+      ...options
     };
   };
 }
