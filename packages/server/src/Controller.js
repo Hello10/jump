@@ -1,5 +1,6 @@
 import {isFunction} from 'lodash';
-import Logger from '@hello10/logger';
+
+import base_logger from './logger';
 
 import {
   GraphQLError,
@@ -14,13 +15,9 @@ function capitalize (str) {
 const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
 
 export default class Controller {
-  constructor (options) {
+  constructor (options = {}) {
     this.options = options;
-    let {logger} = options;
-    if (!logger) {
-      logger = new Logger('jump:controller');
-    }
-    this.logger = logger;
+    this.logger = base_logger.child('Controller');
   }
 
   get name () {
@@ -108,12 +105,18 @@ export default class Controller {
 
         const {resolver, authorizer} = definition;
         result[type][name] = async (obj, args, context, info)=> {
-          logger.debug(`Calling resolver ${path}`);
+          const {user} = context;
+          const params = {obj, args, context, info, user};
+
+          const rlogger = logger.child({
+            resolver: name,
+            type,
+            user
+          });
+
+          rlogger.debug(`Calling resolver ${path}`);
 
           try {
-            const {user} = context;
-            const params = {obj, args, context, info, user};
-
             // Have to handle this explicitly, would be better to have
             // this in context build derp meh
             const {load_user_error} = context;
@@ -121,27 +124,21 @@ export default class Controller {
               throw load_user_error;
             }
 
-            const res_logger = logger.child({
-              resolver: name,
-              type,
-              user
-            });
-
             const authorized = await authorizer.call(this, params);
             if (!authorized) {
               const error = new NotAuthorizedError({path});
-              res_logger.error(error);
+              rlogger.error(error);
               throw error;
             }
 
-            res_logger.info('Calling resolver', {obj, args});
+            rlogger.info('Calling resolver', {obj, args});
             return resolver.call(this, params);
           } catch (error) {
             if (error.expected) {
-              logger.error('Expected GraphQL error', error);
+              rlogger.error('Expected GraphQL error', error);
               throw error;
             } else {
-              logger.error('Unexpected GraphQL error', error);
+              rlogger.error('Unexpected GraphQL error', error);
               throw new GraphQLError();
             }
           }

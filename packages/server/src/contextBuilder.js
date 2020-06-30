@@ -1,10 +1,34 @@
+import base_logger from './logger';
+import getTokenDefault from './getToken';
+
 export default function contextBuilder ({
   Collections,
-  getToken,
-  loadUserFromToken,
-  options
+  loadSession,
+  options,
+  getToken = getTokenDefault,
+  onLoad = ()=> {}
 }) {
+  let loaded = false;
   return async ({req})=> {
+    // TODO: support serializers in logger
+    const logger = base_logger.child({
+      name: 'contextBuilder',
+      req: {
+        url: req.url,
+        method: req.method,
+        protocol: req.protocol,
+        requestId: req.requestId,
+        ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        headers: req.headers
+      }
+    });
+
+    if (!loaded) {
+      logger.debug('calling onLoad');
+      await onLoad();
+      loaded = true;
+    }
+
     const loaders = {};
     function getLoader (arg) {
       const name = arg.name || arg;
@@ -19,7 +43,9 @@ export default function contextBuilder ({
       const name = arg.name || arg;
       const Collection = Collections[name];
       if (!Collection) {
-        throw new Error(`Collection with name ${name} does not exist`);
+        const msg = `Collection with name ${name} does not exist`;
+        logger.error(msg);
+        throw new Error(msg);
       }
 
       return Collection.get({
@@ -29,6 +55,7 @@ export default function contextBuilder ({
       });
     }
 
+    let session_id = null;
     let user_id = null;
     let user = null;
     let load_user_error = null;
@@ -36,9 +63,10 @@ export default function contextBuilder ({
     const token = getToken(req);
     if (token) {
       try {
-        ({user_id, user} = await loadUserFromToken({token, getCollection}));
+        ({session_id, user_id, user} = await loadSession({token, getCollection}));
+        logger.debug('Loaded session', {session_id, user});
       } catch (error) {
-        console.error(error);
+        logger.error('Error loading session', error);
         load_user_error = error;
       }
     }
@@ -46,7 +74,7 @@ export default function contextBuilder ({
     return {
       getCollection,
       getLoader,
-      token,
+      session_id,
       user_id,
       user,
       load_user_error,

@@ -1,9 +1,9 @@
 import DataLoader from 'dataloader';
-import { isFunction, omit, uniq, isObject, isNumber, merge } from 'lodash';
-import Logger from '@hello10/logger';
+import { omit, uniq, isObject, isNumber, isFunction, merge, difference, get } from 'lodash';
 import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
+import Logger from '@hello10/logger';
+import { graphql, formatError as formatError$1 } from 'graphql';
 import { makeExecutableSchema } from 'graphql-tools';
-import makeDebug from 'debug';
 
 function isExisting({
   context
@@ -128,6 +128,31 @@ class Collection {
 
 }
 
+function timestampsToDates(obj) {
+  if (!obj) {
+    return obj;
+  }
+
+  const type = obj.constructor.name;
+
+  switch (type) {
+    case 'Array':
+      return obj.map(timestampsToDates);
+
+    case 'Object':
+      return Object.keys(obj).reduce((result, k) => {
+        result[k] = timestampsToDates(obj[k]);
+        return result;
+      }, {});
+
+    case 'Timestamp':
+      return obj.toDate();
+
+    default:
+      return obj;
+  }
+}
+
 class GraphQLError extends ApolloError {
   constructor({
     code = 'GraphQLError',
@@ -170,284 +195,6 @@ class NotAuthorizedError extends GraphQLError {
     });
   }
 
-}
-
-function capitalize(str) {
-  return str[0].toUpperCase() + str.slice(1);
-}
-
-const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
-class Controller {
-  constructor(options) {
-    this.exists = this._toCollection('exists');
-    this.get = this._toCollection('get');
-    this.list = this._toCollection('list');
-    this.create = this._wrapToCollection('create');
-    this.set = this._wrapToCollection('set');
-    this.options = options;
-    let {
-      logger
-    } = options;
-
-    if (!logger) {
-      logger = new Logger('jump:controller');
-    }
-
-    this.logger = logger;
-  }
-
-  get name() {
-    throw new Error('Child class must implement .name');
-  }
-
-  static resolvers() {
-    throw new Error('Child class must implement .resolvers');
-  }
-
-  collection({
-    context,
-    name
-  }) {
-    return context.getCollection(name || this.name);
-  }
-
-  loader({
-    context,
-    name
-  }) {
-    return context.getLoader(name || this.name);
-  }
-
-  expose() {
-    var _this = this;
-
-    const {
-      logger
-    } = this;
-    const result = {};
-    const groups = this.resolvers();
-
-    for (const [type, group] of Object.entries(groups)) {
-      if (!(type in result)) {
-        result[type] = {};
-      }
-
-      for (const [name, definition] of Object.entries(group)) {
-        const path = `${type}.${name}`;
-
-        if (name === APOLLO_UNION_RESOLVER_NAME) {
-          result[type][name] = (obj, context, info) => {
-            return definition.call(this, {
-              obj,
-              context,
-              info
-            });
-          };
-
-          continue;
-        }
-
-        for (const field of ['authorizer', 'resolver']) {
-          if (!isFunction(definition[field])) {
-            throw new Error(`Invalid ${field} definition for ${path}`);
-          }
-        }
-
-        const {
-          resolver,
-          authorizer
-        } = definition;
-
-        result[type][name] = async function (obj, args, context, info) {
-          logger.debug(`Calling resolver ${path}`);
-
-          try {
-            const {
-              user
-            } = context;
-            const params = {
-              obj,
-              args,
-              context,
-              info,
-              user
-            };
-            const {
-              load_user_error
-            } = context;
-
-            if (load_user_error) {
-              throw load_user_error;
-            }
-
-            const res_logger = logger.child({
-              resolver: name,
-              type,
-              user
-            });
-            const authorized = await authorizer.call(_this, params);
-
-            if (!authorized) {
-              const error = new NotAuthorizedError({
-                path
-              });
-              res_logger.error(error);
-              throw error;
-            }
-
-            res_logger.info('Calling resolver', {
-              obj,
-              args
-            });
-            return resolver.call(_this, params);
-          } catch (error) {
-            if (error.expected) {
-              logger.error('Expected GraphQL error', error);
-              throw error;
-            } else {
-              logger.error('Unexpected GraphQL error', error);
-              throw new GraphQLError();
-            }
-          }
-        };
-      }
-    }
-
-    return result;
-  }
-
-  async delete(request) {
-    if (this.beforeDelete) {
-      await this.beforeDelete(request);
-    }
-
-    const {
-      id
-    } = request.args;
-    const deleted = await this.delete({
-      id
-    });
-    const deleted_at = new Date();
-
-    if (this.afterDelete) {
-      await this.afterDelete({ ...request,
-        deleted,
-        deleted_at
-      });
-    }
-
-    return {
-      deleted_at,
-      deleted
-    };
-  }
-
-  _toCollection(method) {
-    return request => {
-      const collection = this.collection(request);
-      return collection[method](request.args);
-    };
-  }
-
-  _wrapToCollection(method) {
-    var _this2 = this;
-
-    const cmethod = capitalize(method);
-    const before = `before${cmethod}`;
-    const after = `after${cmethod}`;
-    return async function (request) {
-      const collection = _this2.collection(request);
-
-      let {
-        data
-      } = request.args;
-
-      if (_this2[before]) {
-        data = await _this2[before](request);
-      }
-
-      let doc = await collection[method]({
-        data
-      });
-
-      if (_this2[after]) {
-        doc = await _this2[after]({ ...request,
-          data,
-          doc
-        });
-      }
-
-      return doc;
-    };
-  }
-
-  load({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
-      return id ? loader.load(id) : null;
-    };
-  }
-
-  loadMany({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
-      return ids.length ? loader.loadMany(ids) : [];
-    };
-  }
-
-  resolveType(getType) {
-    return ({
-      obj,
-      info
-    }) => {
-      const type = getType(obj);
-      return info.schema.getType(type);
-    };
-  }
-
-  stub() {
-    throw new Error('Unimplemented stub');
-  }
-
-}
-
-function timestampsToDates(obj) {
-  if (!obj) {
-    return obj;
-  }
-
-  const type = obj.constructor.name;
-
-  switch (type) {
-    case 'Array':
-      return obj.map(timestampsToDates);
-
-    case 'Object':
-      return Object.keys(obj).reduce((result, k) => {
-        result[k] = timestampsToDates(obj[k]);
-        return result;
-      }, {});
-
-    case 'Timestamp':
-      return obj.toDate();
-
-    default:
-      return obj;
-  }
 }
 
 class FirestoreCollection extends Collection {
@@ -757,38 +504,293 @@ class FirestoreCollection extends Collection {
 
 }
 
-const debug = makeDebug('jump');
+const logger = new Logger('jump');
 
-function makeSchema({
-  Schema,
-  Controllers,
-  Scalars,
-  options
-}) {
-  const resolvers = {};
+function capitalize(str) {
+  return str[0].toUpperCase() + str.slice(1);
+}
 
-  for (const [name, Controller] of Object.entries(Controllers)) {
-    debug(`Exposing controller ${name}`);
-    const controller = new Controller(options);
-    merge(resolvers, controller.expose());
+const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
+class Controller {
+  constructor(options = {}) {
+    this.exists = this._toCollection('exists');
+    this.get = this._toCollection('get');
+    this.list = this._toCollection('list');
+    this.create = this._wrapToCollection('create');
+    this.set = this._wrapToCollection('set');
+    this.options = options;
+    this.logger = logger.child('Controller');
   }
 
-  merge(resolvers, Scalars);
-  return makeExecutableSchema({
-    typeDefs: Schema,
-    resolvers
-  });
+  get name() {
+    throw new Error('Child class must implement .name');
+  }
+
+  static resolvers() {
+    throw new Error('Child class must implement .resolvers');
+  }
+
+  collection({
+    context,
+    name
+  }) {
+    return context.getCollection(name || this.name);
+  }
+
+  loader({
+    context,
+    name
+  }) {
+    return context.getLoader(name || this.name);
+  }
+
+  expose() {
+    var _this = this;
+
+    const {
+      logger
+    } = this;
+    const result = {};
+    const groups = this.resolvers();
+
+    for (const [type, group] of Object.entries(groups)) {
+      if (!(type in result)) {
+        result[type] = {};
+      }
+
+      for (const [name, definition] of Object.entries(group)) {
+        const path = `${type}.${name}`;
+
+        if (name === APOLLO_UNION_RESOLVER_NAME) {
+          result[type][name] = (obj, context, info) => {
+            return definition.call(this, {
+              obj,
+              context,
+              info
+            });
+          };
+
+          continue;
+        }
+
+        for (const field of ['authorizer', 'resolver']) {
+          if (!isFunction(definition[field])) {
+            throw new Error(`Invalid ${field} definition for ${path}`);
+          }
+        }
+
+        const {
+          resolver,
+          authorizer
+        } = definition;
+
+        result[type][name] = async function (obj, args, context, info) {
+          const {
+            user
+          } = context;
+          const params = {
+            obj,
+            args,
+            context,
+            info,
+            user
+          };
+          const rlogger = logger.child({
+            resolver: name,
+            type,
+            user
+          });
+          rlogger.debug(`Calling resolver ${path}`);
+
+          try {
+            const {
+              load_user_error
+            } = context;
+
+            if (load_user_error) {
+              throw load_user_error;
+            }
+
+            const authorized = await authorizer.call(_this, params);
+
+            if (!authorized) {
+              const error = new NotAuthorizedError({
+                path
+              });
+              rlogger.error(error);
+              throw error;
+            }
+
+            rlogger.info('Calling resolver', {
+              obj,
+              args
+            });
+            return resolver.call(_this, params);
+          } catch (error) {
+            if (error.expected) {
+              rlogger.error('Expected GraphQL error', error);
+              throw error;
+            } else {
+              rlogger.error('Unexpected GraphQL error', error);
+              throw new GraphQLError();
+            }
+          }
+        };
+      }
+    }
+
+    return result;
+  }
+
+  async delete(request) {
+    if (this.beforeDelete) {
+      await this.beforeDelete(request);
+    }
+
+    const {
+      id
+    } = request.args;
+    const deleted = await this.delete({
+      id
+    });
+    const deleted_at = new Date();
+
+    if (this.afterDelete) {
+      await this.afterDelete({ ...request,
+        deleted,
+        deleted_at
+      });
+    }
+
+    return {
+      deleted_at,
+      deleted
+    };
+  }
+
+  _toCollection(method) {
+    return request => {
+      const collection = this.collection(request);
+      return collection[method](request.args);
+    };
+  }
+
+  _wrapToCollection(method) {
+    var _this2 = this;
+
+    const cmethod = capitalize(method);
+    const before = `before${cmethod}`;
+    const after = `after${cmethod}`;
+    return async function (request) {
+      const collection = _this2.collection(request);
+
+      let {
+        data
+      } = request.args;
+
+      if (_this2[before]) {
+        data = await _this2[before](request);
+      }
+
+      let doc = await collection[method]({
+        data
+      });
+
+      if (_this2[after]) {
+        doc = await _this2[after]({ ...request,
+          data,
+          doc
+        });
+      }
+
+      return doc;
+    };
+  }
+
+  load({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const id = obj[field];
+      return id ? loader.load(id) : null;
+    };
+  }
+
+  loadMany({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const ids = obj[field];
+      return ids.length ? loader.loadMany(ids) : [];
+    };
+  }
+
+  resolveType(getType) {
+    return ({
+      obj,
+      info
+    }) => {
+      const type = getType(obj);
+      return info.schema.getType(type);
+    };
+  }
+
+  stub() {
+    throw new Error('Unimplemented stub');
+  }
+
+}
+
+function getToken(request) {
+  const header = request.get('Authorization');
+  const prefix = /^Bearer /;
+
+  if (header && header.match(prefix)) {
+    return header.replace(prefix, '');
+  } else {
+    return null;
+  }
 }
 
 function contextBuilder({
   Collections,
-  getToken,
-  loadUserFromToken,
-  options
+  loadSession,
+  options,
+  getToken: getToken$1 = getToken,
+  onLoad = () => {}
 }) {
+  let loaded = false;
   return async ({
     req
   }) => {
+    const logger$1 = logger.child({
+      name: 'contextBuilder',
+      req: {
+        url: req.url,
+        method: req.method,
+        protocol: req.protocol,
+        requestId: req.requestId,
+        ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
+        headers: req.headers
+      }
+    });
+
+    if (!loaded) {
+      logger$1.debug('calling onLoad');
+      await onLoad();
+      loaded = true;
+    }
+
     const loaders = {};
 
     function getLoader(arg) {
@@ -807,7 +809,9 @@ function contextBuilder({
       const Collection = Collections[name];
 
       if (!Collection) {
-        throw new Error(`Collection with name ${name} does not exist`);
+        const msg = `Collection with name ${name} does not exist`;
+        logger$1.error(msg);
+        throw new Error(msg);
       }
 
       return Collection.get({
@@ -817,22 +821,28 @@ function contextBuilder({
       });
     }
 
+    let session_id = null;
     let user_id = null;
     let user = null;
     let load_user_error = null;
-    const token = getToken(req);
+    const token = getToken$1(req);
 
     if (token) {
       try {
         ({
+          session_id,
           user_id,
           user
-        } = await loadUserFromToken({
+        } = await loadSession({
           token,
           getCollection
         }));
+        logger$1.debug('Loaded session', {
+          session_id,
+          user
+        });
       } catch (error) {
-        console.error(error);
+        logger$1.error('Error loading session', error);
         load_user_error = error;
       }
     }
@@ -840,7 +850,7 @@ function contextBuilder({
     return {
       getCollection,
       getLoader,
-      token,
+      session_id,
       user_id,
       user,
       load_user_error,
@@ -849,43 +859,107 @@ function contextBuilder({
   };
 }
 
-function getTokenDefault(request) {
-  const header = request.get('Authorization');
-  const prefix = /^Bearer /;
+async function directGraphqlRequest({
+  Schema,
+  context,
+  query,
+  variables
+}) {
+  const rlogger = logger.child({
+    name: 'localGraphqlRequest',
+    query,
+    variables
+  });
+  rlogger.debug('Making request');
+  const root = {};
+  const response = await graphql(Schema, query, root, context, variables);
+  const {
+    data,
+    errors
+  } = response;
 
-  if (header && header.match(prefix)) {
-    return header.replace(prefix, '');
+  if (errors) {
+    const error = errors[0];
+    rlogger.error(error);
+    throw error;
   } else {
-    return null;
+    rlogger.debug('Got response', {
+      data
+    });
+    return data;
   }
 }
 
+function expose({
+  Controllers,
+  Scalars,
+  options
+}) {
+  const resolvers = {};
+
+  for (const [name, Controller] of Object.entries(Controllers)) {
+    logger.debug(`Exposing controller ${name}`);
+    const controller = new Controller(options);
+    merge(resolvers, controller.expose());
+  }
+
+  merge(resolvers, Scalars);
+  return resolvers;
+}
+
+function makeSchema({
+  Schema,
+  Controllers,
+  Scalars,
+  options
+}) {
+  const resolvers = expose({
+    Controllers,
+    Scalars,
+    options
+  });
+  return makeExecutableSchema({
+    typeDefs: Schema,
+    resolvers
+  });
+}
+
+function formatError(error) {
+  console.error(error);
+  let data = formatError$1(error);
+  const {
+    originalError: oerror
+  } = error;
+
+  if (oerror && oerror.expected) {
+    data.code = oerror.code;
+  } else {
+    const public_error = new GraphQLError();
+    data = formatError$1(public_error);
+    data.code = public_error.code;
+  }
+
+  return data;
+}
+
 function graphqlHandler({
-  Collections,
   Controllers,
   Scalars,
   Schema,
-  getToken = getTokenDefault,
-  loadUserFromToken,
   options = {}
 }) {
   const {
     server: opts_server = {},
     handler: opts_handler = {},
-    context: opts_context = {}
+    controller: opts_controller = {}
   } = options;
 
-  if (!opts_server.context) {
-    opts_server.context = contextBuilder({
-      options: opts_context,
-      Collections,
-      getToken,
-      loadUserFromToken
-    });
+  if (!opts_server.formatError) {
+    opts_server.formatError = formatError;
   }
 
   const schema = makeSchema({
-    options: opts_context,
+    options: opts_controller,
     Schema,
     Controllers,
     Scalars
@@ -896,5 +970,132 @@ function graphqlHandler({
   return server.createHandler(opts_handler);
 }
 
-export { Authorizers, Collection, Controller, FirestoreCollection, GraphQLError, graphqlHandler };
+function processDefinitions(definitions) {
+  const enums = {};
+  const groups = {
+    Query: [],
+    Mutation: [],
+    Type: []
+  };
+
+  for (const definition of definitions) {
+    const {
+      kind
+    } = definition;
+    const name = get(definition, 'name.value');
+
+    if (!name) {
+      continue;
+    }
+
+    switch (kind) {
+      case 'ScalarTypeDefinition':
+      case 'InterfaceTypeDefinition':
+      case 'UnionTypeDefinition':
+        groups.Type.push(name);
+        break;
+
+      case 'EnumTypeDefinition':
+        {
+          const {
+            values
+          } = definition;
+          enums[name] = values.reduce((result, value_definition) => {
+            const {
+              value
+            } = value_definition.name;
+            result[value] = value;
+            return result;
+          }, {});
+          break;
+        }
+
+      case 'ObjectTypeDefinition':
+        {
+          const is_query_or_mutation = ['Query', 'Mutation'].includes(name);
+
+          if (is_query_or_mutation) {
+            const {
+              fields
+            } = definition;
+
+            for (const field of fields) {
+              const {
+                value
+              } = field.name;
+              groups[name].push(value);
+            }
+          } else {
+            groups.Type.push(name);
+          }
+
+          break;
+        }
+    }
+  }
+
+  return {
+    enums,
+    groups
+  };
+}
+
+function checkSchema({
+  groups: schema_groups,
+  resolvers
+}) {
+  const resolver_groups = Object.entries(resolvers).reduce((names, [k, v]) => {
+    if (k in names) {
+      names[k] = Object.keys(v);
+    } else {
+      names.Type.push(k);
+    }
+
+    return names;
+  }, {
+    Type: [],
+    Query: null,
+    Mutation: null
+  });
+  return Object.entries(schema_groups).reduce((errors, [kind, schema_names]) => {
+    const resolver_names = resolver_groups[kind];
+    const differences = {
+      resolver: difference(schema_names, resolver_names),
+      schema: difference(resolver_names, schema_names)
+    };
+    return Object.entries(differences).reduce((errors, [source, diff]) => {
+      const new_errors = diff.map(name => `Missing ${source} for ${name}`);
+      return [...errors, ...new_errors];
+    }, errors);
+  }, []);
+}
+
+function processSchema({
+  Schema,
+  Controllers,
+  Scalars
+}) {
+  const resolvers = expose({
+    Controllers,
+    Scalars
+  });
+  const {
+    definitions
+  } = Schema;
+  const {
+    enums,
+    groups
+  } = processDefinitions(definitions);
+  const errors = checkSchema({
+    resolvers,
+    groups
+  });
+  return {
+    enums,
+    groups,
+    errors
+  };
+}
+
+export { Authorizers, Collection, Controller, DocumentDoesNotExistError, FirestoreCollection, GraphQLError, NotAuthorizedError, contextBuilder, directGraphqlRequest, graphqlHandler, processSchema };
 //# sourceMappingURL=index.modern.js.map

@@ -29,16 +29,6 @@ export class DocumentDoesNotExistError extends GraphQLError {
   }
 }
 
-export class SessionUserNotFoundError extends GraphQLError {
-  constructor (params) {
-    super({
-      code: 'SessionUserNotFound',
-      message: `Session user not found: ${params.id}`,
-      params
-    });
-  }
-}
-
 export class NotAuthorizedError extends GraphQLError {
   constructor (params) {
     super({
