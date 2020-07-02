@@ -5,7 +5,7 @@ export class GraphQLError extends ApolloError {
     code = 'GraphQLError',
     message = 'GraphQL error',
     params
-  }) {
+  } = {}) {
     if (message.constructor === Function) {
       message = message(params);
     }
@@ -18,12 +18,21 @@ export class GraphQLError extends ApolloError {
   }
 }
 
-export class DocumentDoesNotExistError extends GraphQLError {
+export class DoesNotExistError extends GraphQLError {
   constructor (params) {
-    const {type, id} = params;
     super({
-      code: 'DocumentDoesNotExist',
-      message: `Document ${type} with id ${id} does not exist`,
+      code: 'DoesNotExist',
+      message: ({type, id, ids, query})=> {
+        let missing = '';
+        if (id) {
+          missing = ` for id = ${id}`;
+        } else if (ids) {
+          missing = ` for ids = [${ids.join(',')}]`;
+        } else if (query) {
+          missing = ` for query = ${query}`;
+        }
+        return `Could not find ${type}${missing}`;
+      },
       params
     });
   }

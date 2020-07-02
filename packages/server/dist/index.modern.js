@@ -1,7 +1,8 @@
 import DataLoader from 'dataloader';
-import { omit, uniq, isObject, isNumber, isFunction, merge, difference, get } from 'lodash';
-import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
+import { compact, uniq, isObject, isNumber, omit, isFunction, merge, difference, get } from 'lodash';
+import Promise from 'bluebird';
 import Logger from '@hello10/logger';
+import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
 import { graphql, formatError as formatError$1 } from 'graphql';
 import { makeExecutableSchema } from 'graphql-tools';
 
@@ -26,9 +27,20 @@ var Authorizers = {
   isPublic: isPublic
 };
 
+const logger = new Logger('jump');
+
+const logger$1 = logger.child('Collection');
 class Collection {
   static get(args) {
     return new this(args);
+  }
+
+  constructor({
+    getCollection,
+    getLoader
+  }) {
+    this.getCollection = getCollection;
+    this.getLoader = getLoader;
   }
 
   get name() {
@@ -39,77 +51,193 @@ class Collection {
     throw new Error('Collection child class must implement .collection');
   }
 
-  get loader() {
-    return new DataLoader(ids => {
-      return this.getMany({
-        ids
-      });
-    });
-  }
-
   create() {
     throw new Error('Collection child class must implement .create');
+  }
+
+  createAll({
+    datas
+  }) {
+    return Promise.map(datas, data => this.create({
+      data
+    }));
+  }
+
+  async findOrCreate({
+    query,
+    data
+  }) {
+    const doc = await this.findOne({
+      query
+    });
+    return doc || this.create({
+      data
+    });
   }
 
   exists() {
     throw new Error('Collection child class must implement .exists');
   }
 
+  existsAssert({
+    id
+  }) {
+    return this.exists({
+      id,
+      assert: true
+    });
+  }
+
+  async existsAll({
+    ids,
+    assert = false
+  }) {
+    const docs = await this.getAll({
+      ids,
+      assert
+    });
+    return docs.every(doc => !!doc);
+  }
+
+  existsAllAssert({
+    ids
+  }) {
+    return this.existsAll({
+      ids,
+      assert: true
+    });
+  }
+
   get() {
     throw new Error('Collection child class must implement .get');
   }
 
-  getSafe({
+  getAssert({
     id
   }) {
     return this.get({
       id,
-      safe: true
+      assert: true
     });
   }
 
-  getMany() {
-    throw new Error('Collection child class must implement .getMany');
+  getAll() {
+    throw new Error('Collection child class must implement .getAll');
   }
 
-  getManySafe({
+  getAllAssert({
     ids
   }) {
-    return this.getMany({
+    return this.getAll({
       ids,
-      safe: true
+      assert: true
     });
   }
 
-  find() {}
-
-  set() {
-    throw new Error('Collection child class must implement .set');
+  find() {
+    throw new Error('Collection child class must implement .find');
   }
 
-  setSafe({
-    id,
-    data
+  async findOne({
+    query,
+    sort,
+    select
   }) {
-    return this.setMany({
-      id,
-      data,
-      safe: true
+    const docs = await this.find({
+      limit: 1,
+      query,
+      sort,
+      select
+    });
+    return docs.length > 0 ? docs[0] : null;
+  }
+
+  async findIds({
+    query
+  }) {
+    const docs = await this.find({
+      query,
+      select: ['id']
+    });
+    return docs.map(({
+      id
+    }) => id);
+  }
+
+  async list({
+    limit,
+    sort,
+    start_at,
+    start_after
+  } = {}) {
+    return this.find({
+      limit,
+      sort,
+      start_at,
+      start_after
     });
   }
 
-  merge() {
-    throw new Error('Collection child class must implement .merge');
+  update() {
+    throw new Error('Collection child class must implement .update');
   }
 
-  mergeSafe({
+  updateAssert({
     id,
-    data
+    data,
+    merge = true
   }) {
-    return this.merge({
+    return this.update({
       id,
       data,
-      safe: true
+      merge,
+      assert: true
+    });
+  }
+
+  async updateAll({
+    ids,
+    data,
+    merge = true,
+    assert = false
+  }) {
+    this._addUpdatedAt(data);
+
+    return Promise.map(ids, id => {
+      return this.update({
+        id,
+        data,
+        merge,
+        assert
+      });
+    });
+  }
+
+  updateAllAssert({
+    ids,
+    data,
+    merge = true
+  }) {
+    return this.update({
+      ids,
+      data,
+      merge,
+      assert: true
+    });
+  }
+
+  async updateMany({
+    query,
+    data,
+    merge = true
+  }) {
+    const ids = await this.findIds({
+      query
+    });
+    return this.updateAll({
+      ids,
+      data,
+      merge
     });
   }
 
@@ -117,13 +245,106 @@ class Collection {
     throw new Error('Collection child class must implement .delete');
   }
 
-  deleteSafe({
+  deleteAssert({
     id
   }) {
     return this.delete({
       id,
-      safe: true
+      assert: true
     });
+  }
+
+  deleteAll() {
+    throw new Error('Collection child class must implement .deleteAll');
+  }
+
+  async deleteMany({
+    query
+  }) {
+    const ids = await this.findIds({
+      query
+    });
+    return this.deleteAll({
+      ids
+    });
+  }
+
+  get loader() {
+    var _this = this;
+
+    return new DataLoader(async function (ids) {
+      logger$1.debug({
+        message: `calling DataLoader for ${_this.name}`,
+        ids
+      });
+      const docs = await _this.getAll({
+        ids
+      });
+      const lookup = new Map();
+
+      for (const doc of docs) {
+        lookup.set(doc.id, doc);
+      }
+
+      return ids.map(id => {
+        return lookup.has(id) ? lookup.get(id) : null;
+      });
+    });
+  }
+
+  load(id) {
+    if (!id) {
+      throw new Error('Missing id');
+    }
+
+    const loader = this.getLoader(this.name);
+    return loader.load(id);
+  }
+
+  loadMany(ids) {
+    if (!ids.length) {
+      return [];
+    }
+
+    const loader = this.getLoader(this.name);
+    return loader.loadMany(ids);
+  }
+
+  async loadManyCompact(ids) {
+    const docs = await this.loadMany(ids);
+    return compact(docs);
+  }
+
+  _timestamp() {
+    return new Date();
+  }
+
+  _addTimestamps(obj, time) {
+    if (!time) {
+      time = this._timestamp();
+    }
+
+    this._addCreatedAt(obj, time);
+
+    this._addUpdatedAt(obj, time);
+
+    return obj;
+  }
+
+  _addCreatedAt(obj, time) {
+    if (!('created_at' in obj)) {
+      obj.created_at = time || this._timestamp();
+    }
+
+    return obj;
+  }
+
+  _addUpdatedAt(obj, time) {
+    if (!('updated_at' in obj)) {
+      obj.updated_at = time || this._timestamp();
+    }
+
+    return obj;
   }
 
 }
@@ -158,7 +379,7 @@ class GraphQLError extends ApolloError {
     code = 'GraphQLError',
     message = 'GraphQL error',
     params
-  }) {
+  } = {}) {
     if (message.constructor === Function) {
       message = message(params);
     }
@@ -172,15 +393,28 @@ class GraphQLError extends ApolloError {
   }
 
 }
-class DocumentDoesNotExistError extends GraphQLError {
+class DoesNotExistError extends GraphQLError {
   constructor(params) {
-    const {
-      type,
-      id
-    } = params;
     super({
-      code: 'DocumentDoesNotExist',
-      message: `Document ${type} with id ${id} does not exist`,
+      code: 'DoesNotExist',
+      message: ({
+        type,
+        id,
+        ids,
+        query
+      }) => {
+        let missing = '';
+
+        if (id) {
+          missing = ` for id = ${id}`;
+        } else if (ids) {
+          missing = ` for ids = [${ids.join(',')}]`;
+        } else if (query) {
+          missing = ` for query = ${query}`;
+        }
+
+        return `Could not find ${type}${missing}`;
+      },
       params
     });
   }
@@ -198,17 +432,14 @@ class NotAuthorizedError extends GraphQLError {
 }
 
 class FirestoreCollection extends Collection {
-  constructor({
-    Admin,
-    app,
-    getCollection,
-    getLoader
-  }) {
-    super();
+  constructor(options) {
+    super(options);
+    const {
+      Admin,
+      app
+    } = options;
     this.Admin = Admin;
     this.app = app;
-    this.getCollection = getCollection;
-    this.getLoader = getLoader;
   }
 
   get auth() {
@@ -223,34 +454,263 @@ class FirestoreCollection extends Collection {
     return this.collection.doc(id);
   }
 
+  async create({
+    data
+  }) {
+    return this.add({
+      data
+    });
+  }
+
+  async exists({
+    id,
+    assert = false
+  }) {
+    const ref = this.doc(id);
+    const snap = await ref.get();
+    const {
+      exists
+    } = snap;
+
+    if (assert && !exists) {
+      const type = this.name();
+      throw new DoesNotExistError({
+        type,
+        id
+      });
+    }
+
+    return exists;
+  }
+
+  async get({
+    id,
+    assert = false
+  }) {
+    const ref = this.doc(id);
+    const snap = await ref.get();
+
+    if (assert && !snap.exists) {
+      const type = this.name();
+      throw new DoesNotExistError({
+        type,
+        id
+      });
+    }
+
+    return this._snapToDoc(snap);
+  }
+
+  async getAll({
+    ids,
+    assert = false
+  }) {
+    if (!ids || ids.length === 0) {
+      return [];
+    }
+
+    const uniques = uniq(ids);
+    const refs = uniques.map(id => this.doc(id));
+    const snaps = await this.firestore.getAll(refs);
+    const docs = snaps.map(snap => this._snapToDoc(snap));
+    const docs_by_id = {};
+
+    for (const doc of docs) {
+      if (doc) {
+        docs_by_id[doc.id] = doc;
+      }
+    }
+
+    const missing_ids = [];
+    const result = ids.map(id => {
+      const exists = (id in docs_by_id);
+
+      if (!exists) {
+        missing_ids.push(id);
+      }
+
+      return exists ? docs_by_id[id] : null;
+    });
+
+    if (assert && missing_ids.length) {
+      throw new DoesNotExistError({
+        type: this.name,
+        ids: missing_ids
+      });
+    } else {
+      return result;
+    }
+  }
+
+  async find({
+    query,
+    limit,
+    sort,
+    start_at,
+    start_after,
+    select
+  } = {}) {
+    let cursor = this.collection;
+
+    function invalid(field) {
+      throw new Error(`Invalid ${field} for find`);
+    }
+
+    if (query) {
+      let parts;
+
+      if (isObject(query)) {
+        parts = Object.entries(query).map(([field, value]) => {
+          return [field, '==', value];
+        });
+      } else if (Array.isArray(query)) {
+        parts = Array.isArray(query[0]) ? query : [query];
+      } else {
+        invalid('query');
+      }
+
+      for (const part of parts) {
+        if (part.length !== 3) {
+          invalid('query');
+        }
+
+        const [field, op, value] = part;
+        cursor = cursor.where(field, op, value);
+      }
+    }
+
+    if (sort) {
+      if (!Array.isArray(sort)) {
+        sort = [sort];
+      }
+
+      cursor = cursor.orderBy(...sort);
+    }
+
+    const start = start_after || start_at;
+
+    if (start) {
+      const doc = await this.doc(start).get();
+      const fn = start_after ? 'startAfter' : 'startAt';
+      cursor = cursor[fn](doc);
+    }
+
+    if (limit) {
+      if (!isNumber(limit)) {
+        invalid('limit');
+      }
+
+      cursor = cursor.limit(limit);
+    }
+
+    if (select) {
+      if (!Array.isArray(select)) {
+        invalid('select');
+      }
+
+      cursor = cursor.select(...select);
+    }
+
+    const snap = await cursor.get();
+    return snap.docs.map(this._snapToDoc);
+  }
+
+  async update(args) {
+    return this.set(args);
+  }
+
+  async delete({
+    id,
+    assert = true
+  }) {
+    if (assert) {
+      await this.existsAssert({
+        id
+      });
+    }
+
+    const ref = this.doc(id);
+    return ref.delete();
+  }
+
+  deleteAll({
+    ids
+  }) {
+    const batch = this.Admin.firestore.batch();
+
+    for (const id of ids) {
+      const ref = this.doc(id);
+      batch.delete(ref);
+    }
+
+    return batch.commit();
+  }
+
   async add({
     data
   }) {
     data = omit(data, 'id');
 
-    const timestamp = this._timestampField();
+    this._addTimestamps(data);
 
-    data.created_at = timestamp;
-    data.updated_at = timestamp;
     const ref = await this.collection.add(data);
     data.id = ref.id;
     return data;
   }
 
+  async getOrAddById({
+    id,
+    data,
+    add = x => x
+  }) {
+    let user = await this.get({
+      id
+    });
+
+    if (!user) {
+      data = await add(data);
+      user = await this.set({
+        id,
+        data,
+        merge: false
+      });
+    }
+
+    return user;
+  }
+
+  findOneByField(field) {
+    return value => {
+      return this.findOne({
+        query: [field, '==', value]
+      });
+    };
+  }
+
   async set({
     id,
     data,
-    merge = true
+    merge = true,
+    assert = false,
+    get = true
   }) {
+    if (assert) {
+      await this.existsAssert({
+        id
+      });
+    }
+
     data = omit(data, 'id');
-    data.updated_at = this._timestampField();
+
+    this._addUpdatedAt(data);
+
     const ref = this.doc(id);
-    await ref.set(data, {
+    const set = await ref.set(data, {
       merge
     });
-    return this.get({
+    return get ? this.get({
       id
-    });
+    }) : set;
   }
 
   async addOrSetByField({
@@ -277,209 +737,7 @@ class FirestoreCollection extends Collection {
     }
   }
 
-  async getOrAddById({
-    id,
-    data,
-    add = x => x
-  }) {
-    let user = await this.get({
-      id
-    });
-
-    if (!user) {
-      data = await add(data);
-      user = await this.set({
-        id,
-        data,
-        merge: false
-      });
-    }
-
-    return user;
-  }
-
-  async exists({
-    id
-  }) {
-    const ref = this.doc(id);
-    const snap = await ref.get();
-    return snap.exists;
-  }
-
-  async get({
-    id,
-    safe = false
-  }) {
-    const ref = this.doc(id);
-    const snap = await ref.get();
-
-    if (safe && !snap.exists) {
-      const type = this.name();
-      throw new DocumentDoesNotExistError({
-        type,
-        id
-      });
-    }
-
-    return this._snapToDoc(snap);
-  }
-
-  async getAssert({
-    id
-  }) {
-    return this.get({
-      id,
-      safe: true
-    });
-  }
-
-  async getMany({
-    ids
-  }) {
-    if (!ids || ids.length === 0) {
-      return [];
-    }
-
-    const uniques = uniq(ids);
-    const refs = uniques.map(id => this.doc(id));
-    const snaps = await this.firestore.getAll(refs);
-    const docs = snaps.map(snap => this._snapToDoc(snap));
-    const docs_by_id = {};
-
-    for (const doc of docs) {
-      if (doc) {
-        docs_by_id[doc.id] = doc;
-      }
-    }
-
-    return ids.map(id => {
-      return id in docs_by_id ? docs_by_id[id] : null;
-    });
-  }
-
-  async find({
-    where,
-    limit,
-    order_by,
-    select
-  } = {}) {
-    let query = this.collection;
-
-    function invalid(field) {
-      throw new Error(`Invalid ${field} for find`);
-    }
-
-    if (where) {
-      let parts;
-
-      if (isObject(where)) {
-        parts = Object.entries(where).map(([field, value]) => {
-          return [field, '==', value];
-        });
-      } else if (Array.isArray(where)) {
-        parts = Array.isArray(where[0]) ? where : [where];
-      } else {
-        invalid('where');
-      }
-
-      for (const part of parts) {
-        if (part.length !== 3) {
-          invalid('where');
-        }
-
-        const [field, op, value] = part;
-        query = query.where(field, op, value);
-      }
-    }
-
-    if (order_by) {
-      if (!Array.isArray(order_by)) {
-        order_by = [order_by];
-      }
-
-      query = query.orderBy(...order_by);
-    }
-
-    if (limit) {
-      if (!isNumber(limit)) {
-        invalid('limit');
-      }
-
-      query = query.limit(limit);
-    }
-
-    if (select) {
-      if (!Array.isArray(select)) {
-        invalid('select');
-      }
-
-      query = query.select(...select);
-    }
-
-    const snap = await query.get();
-    return snap.docs.map(this._snapToDoc);
-  }
-
-  async findOne({
-    where,
-    order_by,
-    select
-  }) {
-    const docs = await this.find({
-      limit: 1,
-      where,
-      order_by,
-      select
-    });
-    return docs.length > 0 ? docs[0] : null;
-  }
-
-  findOneByField(field) {
-    return value => {
-      return this.findOne({
-        where: [field, '==', value]
-      });
-    };
-  }
-
-  async delete({
-    id,
-    ids,
-    where
-  }) {
-    if (id) {
-      const ref = this.doc(id);
-      return ref.delete();
-    }
-
-    if (ids && where) {
-      throw new Error('Delete call should pass ids or where not both');
-    }
-
-    if (where) {
-      const docs = await this.find({
-        where
-      });
-      ids = docs.map(({
-        id
-      }) => id);
-    }
-
-    if (ids.length === 0) {
-      return Promise.resolve();
-    }
-
-    const batch = this.firestore.batch();
-
-    for (const _id of ids) {
-      const ref = this.doc(_id);
-      batch.delete(ref);
-    }
-
-    return batch.commit();
-  }
-
-  _timestampField() {
+  _timestamp() {
     return this.Admin.firestore.FieldValue.serverTimestamp();
   }
 
@@ -504,8 +762,6 @@ class FirestoreCollection extends Collection {
 
 }
 
-const logger = new Logger('jump');
-
 function capitalize(str) {
   return str[0].toUpperCase() + str.slice(1);
 }
@@ -517,7 +773,7 @@ class Controller {
     this.get = this._toCollection('get');
     this.list = this._toCollection('list');
     this.create = this._wrapToCollection('create');
-    this.set = this._wrapToCollection('set');
+    this.update = this._wrapToCollection('update');
     this.options = options;
     this.logger = logger.child('Controller');
   }
@@ -642,6 +898,48 @@ class Controller {
     return result;
   }
 
+  load({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const id = obj[field];
+      return id ? loader.load(id) : null;
+    };
+  }
+
+  loadMany({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const ids = obj[field];
+      return ids.length ? loader.loadMany(ids) : [];
+    };
+  }
+
+  resolveType(getType) {
+    return ({
+      obj,
+      info
+    }) => {
+      const type = getType(obj);
+      return info.schema.getType(type);
+    };
+  }
+
+  stub() {
+    throw new Error('Unimplemented stub');
+  }
+
   async delete(request) {
     if (this.beforeDelete) {
       await this.beforeDelete(request);
@@ -650,7 +948,8 @@ class Controller {
     const {
       id
     } = request.args;
-    const deleted = await this.delete({
+    const collection = this.collection(request);
+    const deleted = await collection.delete({
       id
     });
     const deleted_at = new Date();
@@ -705,48 +1004,6 @@ class Controller {
 
       return doc;
     };
-  }
-
-  load({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
-      return id ? loader.load(id) : null;
-    };
-  }
-
-  loadMany({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
-      return ids.length ? loader.loadMany(ids) : [];
-    };
-  }
-
-  resolveType(getType) {
-    return ({
-      obj,
-      info
-    }) => {
-      const type = getType(obj);
-      return info.schema.getType(type);
-    };
-  }
-
-  stub() {
-    throw new Error('Unimplemented stub');
   }
 
 }
@@ -925,7 +1182,7 @@ function makeSchema({
 }
 
 function formatError(error) {
-  console.error(error);
+  logger.error(error);
   let data = formatError$1(error);
   const {
     originalError: oerror
@@ -1097,5 +1354,5 @@ function processSchema({
   };
 }
 
-export { Authorizers, Collection, Controller, DocumentDoesNotExistError, FirestoreCollection, GraphQLError, NotAuthorizedError, contextBuilder, directGraphqlRequest, graphqlHandler, processSchema };
+export { Authorizers, Collection, Controller, DoesNotExistError, FirestoreCollection, GraphQLError, NotAuthorizedError, contextBuilder, directGraphqlRequest, graphqlHandler, processSchema };
 //# sourceMappingURL=index.modern.js.map

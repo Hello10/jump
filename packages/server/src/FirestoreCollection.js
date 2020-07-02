@@ -2,15 +2,14 @@ import {omit, uniq, isNumber, isObject} from 'lodash';
 
 import Collection from './Collection';
 import timestampsToDates from './timestampsToDates';
-import {DocumentDoesNotExistError} from './Errors';
+import {DoesNotExistError} from './Errors';
 
 export default class FirestoreCollection extends Collection {
-  constructor ({Admin, app, getCollection, getLoader}) {
-    super();
+  constructor (options) {
+    super(options);
+    const {Admin, app} = options;
     this.Admin = Admin;
     this.app = app;
-    this.getCollection = getCollection;
-    this.getLoader = getLoader;
   }
 
   get auth () {
@@ -25,69 +24,40 @@ export default class FirestoreCollection extends Collection {
     return this.collection.doc(id);
   }
 
-  //////////
-  // CRUD //
-  //////////
-  async add ({data}) {
-    data = omit(data, 'id');
-    const timestamp = this._timestampField();
-    data.created_at = timestamp;
-    data.updated_at = timestamp;
-    const ref = await this.collection.add(data);
-    data.id = ref.id;
-    return data;
+  /////////////////
+  // Core:Create //
+  /////////////////
+
+  async create ({data}) {
+    return this.add({data});
   }
 
-  async set ({id, data, merge = true}) {
-    data = omit(data, 'id');
-    data.updated_at = this._timestampField();
-    const ref = this.doc(id);
-    await ref.set(data, {merge});
-    return this.get({id});
-  }
+  ///////////////
+  // Core:Read //
+  ///////////////
 
-  async addOrSetByField ({field, data, add = (x)=> x}) {
-    const value = data[field];
-    const doc = await this.findOneByField(field)(value);
-    if (doc) {
-      const {id} = doc;
-      return this.set({id, data});
-    } else {
-      data = await add(data);
-      return this.add({data});
-    }
-  }
-
-  async getOrAddById ({id, data, add = (x)=> x}) {
-    let user = await this.get({id});
-    if (!user) {
-      data = await add(data);
-      user = await this.set({id, data, merge: false});
-    }
-    return user;
-  }
-
-  async exists ({id}) {
+  async exists ({id, assert = false}) {
     const ref = this.doc(id);
     const snap = await ref.get();
-    return snap.exists;
-  }
-
-  async get ({id, safe = false}) {
-    const ref = this.doc(id);
-    const snap = await ref.get();
-    if (safe && !snap.exists) {
+    const {exists} = snap;
+    if (assert && !exists) {
       const type = this.name();
-      throw new DocumentDoesNotExistError({type, id});
+      throw new DoesNotExistError({type, id});
+    }
+    return exists;
+  }
+
+  async get ({id, assert = false}) {
+    const ref = this.doc(id);
+    const snap = await ref.get();
+    if (assert && !snap.exists) {
+      const type = this.name();
+      throw new DoesNotExistError({type, id});
     }
     return this._snapToDoc(snap);
   }
 
-  async getAssert ({id}) {
-    return this.get({id, safe: true});
-  }
-
-  async getMany ({ids}) {
+  async getAll ({ids, assert = false}) {
     if (!ids || ids.length === 0) {
       return [];
     }
@@ -104,103 +74,107 @@ export default class FirestoreCollection extends Collection {
       }
     }
 
-    return ids.map((id)=> {
-      return (id in docs_by_id) ? docs_by_id[id] : null;
+    const missing_ids = [];
+    const result = ids.map((id)=> {
+      const exists = (id in docs_by_id);
+      if (!exists) {
+        missing_ids.push(id);
+      }
+      return exists ? docs_by_id[id] : null;
     });
+
+    if (assert && missing_ids.length) {
+      throw new DoesNotExistError({
+        type: this.name,
+        ids: missing_ids
+      });
+    } else {
+      return result;
+    }
   }
 
-  async find ({where, limit, order_by, select} = {}) {
-    let query = this.collection;
+  async find ({query, limit, sort, start_at, start_after, select} = {}) {
+    let cursor = this.collection;
 
     function invalid (field) {
       throw new Error(`Invalid ${field} for find`);
     }
 
-    if (where) {
+    if (query) {
       let parts;
-      if (isObject(where)) {
-        parts = Object.entries(where).map(([field, value])=> {
+      if (isObject(query)) {
+        parts = Object.entries(query).map(([field, value])=> {
           return [field, '==', value];
         });
-      } else if (Array.isArray(where)) {
-        parts = Array.isArray(where[0]) ? where : [where];
+      } else if (Array.isArray(query)) {
+        parts = Array.isArray(query[0]) ? query : [query];
       } else {
-        invalid('where');
+        invalid('query');
       }
 
       for (const part of parts) {
         if (part.length !== 3) {
-          invalid('where');
+          invalid('query');
         }
         const [field, op, value] = part;
-        query = query.where(field, op, value);
+        cursor = cursor.where(field, op, value);
       }
     }
 
-    if (order_by) {
-      if (!Array.isArray(order_by)) {
-        order_by = [order_by];
+    if (sort) {
+      if (!Array.isArray(sort)) {
+        sort = [sort];
       }
-      query = query.orderBy(...order_by);
+      cursor = cursor.orderBy(...sort);
     }
 
+    const start = start_after || start_at;
+    if (start) {
+      const doc = await this.doc(start).get();
+      const fn = start_after ? 'startAfter' : 'startAt';
+      cursor = cursor[fn](doc);
+    }
 
     if (limit) {
       if (!isNumber(limit)) {
         invalid('limit');
       }
-      query = query.limit(limit);
+      cursor = cursor.limit(limit);
     }
 
     if (select) {
       if (!Array.isArray(select)) {
         invalid('select');
       }
-      query = query.select(...select);
+      cursor = cursor.select(...select);
     }
 
-    const snap = await query.get();
+    const snap = await cursor.get();
     return snap.docs.map(this._snapToDoc);
   }
 
-  async findOne ({where, order_by, select}) {
-    const docs = await this.find({
-      limit: 1,
-      where,
-      order_by,
-      select
-    });
-    return (docs.length > 0) ? docs[0] : null;
+  /////////////////
+  // Core:Update //
+  /////////////////
+
+  async update (args) {
+    return this.set(args);
   }
 
-  findOneByField (field) {
-    return (value)=> {
-      return this.findOne({
-        where: [field, '==', value]
-      });
-    };
+  /////////////////
+  // Core:Delete //
+  /////////////////
+
+  async delete ({id, assert = true}) {
+    if (assert) {
+      await this.existsAssert({id});
+    }
+    const ref = this.doc(id);
+    return ref.delete();
   }
 
-  async delete ({id, ids, where}) {
-    if (id) {
-      const ref = this.doc(id);
-      return ref.delete();
-    }
-
-    if (ids && where) {
-      throw new Error('Delete call should pass ids or where not both');
-    }
-
-    if (where) {
-      const docs = await this.find({where});
-      ids = docs.map(({id})=> id);
-    }
-
-    if (ids.length === 0) {
-      return Promise.resolve();
-    }
-
-    const batch = this.firestore.batch();
+  deleteAll ({ids}) {
+    const batch = this.Admin.firestore.batch();
     for (const id of ids) {
       const ref = this.doc(id);
       batch.delete(ref);
@@ -208,11 +182,73 @@ export default class FirestoreCollection extends Collection {
     return batch.commit();
   }
 
+  ///////////////
+  // Auxiliary //
+  ///////////////
+
+  async add ({data}) {
+    data = omit(data, 'id');
+    this._addTimestamps(data);
+    const ref = await this.collection.add(data);
+    data.id = ref.id;
+    return data;
+  }
+
+  async getOrAddById ({id, data, add = (x)=> x}) {
+    let user = await this.get({id});
+    if (!user) {
+      data = await add(data);
+      user = await this.set({id, data, merge: false});
+    }
+    return user;
+  }
+
+  findOneByField (field) {
+    return (value)=> {
+      return this.findOne({
+        query: [field, '==', value]
+      });
+    };
+  }
+
+  async set ({
+    id,
+    data,
+    merge = true,
+    assert = false,
+    get = true
+  }) {
+    if (assert) {
+      await this.existsAssert({id});
+    }
+    data = omit(data, 'id');
+    this._addUpdatedAt(data);
+    const ref = this.doc(id);
+    const set = await ref.set(data, {merge});
+    return get ? this.get({id}) : set;
+  }
+
+  async addOrSetByField ({
+    field,
+    data,
+    add = (x)=> x
+  }) {
+    const value = data[field];
+    const doc = await this.findOneByField(field)(value);
+    if (doc) {
+      const {id} = doc;
+      return this.set({id, data});
+    } else {
+      data = await add(data);
+      return this.add({data});
+    }
+  }
+
   /////////////
   // Helpers //
   /////////////
 
-  _timestampField () {
+  _timestamp () {
     return this.Admin.firestore.FieldValue.serverTimestamp();
   }
 

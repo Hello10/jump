@@ -148,17 +148,42 @@ export default class Controller {
     return result;
   }
 
+  load ({collection, field}) {
+    return ({obj, context})=> {
+      const loader = context.getLoader(collection);
+      const id = obj[field];
+      return id ? loader.load(id) : null;
+    };
+  }
+
+  loadMany ({collection, field}) {
+    return ({obj, context})=> {
+      const loader = context.getLoader(collection);
+      const ids = obj[field];
+      return ids.length ? loader.loadMany(ids) : [];
+    };
+  }
+
+  resolveType (getType) {
+    return ({obj, info})=> {
+      const type = getType(obj);
+      return info.schema.getType(type);
+    };
+  }
+
+  stub () {
+    throw new Error('Unimplemented stub');
+  }
 
   ///////////////////////
   // Generic Resolvers //
   ///////////////////////
-  // Delegate all the reads derp
-  // TODO: move to loop at end adding to proto
+
   exists = this._toCollection('exists');
-  get = this._toCollection('get');
-  list = this._toCollection('list');
+  get    = this._toCollection('get');
+  list   = this._toCollection('list');
   create = this._wrapToCollection('create')
-  set = this._wrapToCollection('set');
+  update = this._wrapToCollection('update');
 
   async delete (request) {
     if (this.beforeDelete) {
@@ -166,7 +191,8 @@ export default class Controller {
     }
 
     const {id} = request.args;
-    const deleted = await this.delete({id});
+    const collection = this.collection(request);
+    const deleted = await collection.delete({id});
     const deleted_at = new Date();
 
     if (this.afterDelete) {
@@ -203,32 +229,5 @@ export default class Controller {
 
       return doc;
     };
-  }
-
-  load ({collection, field}) {
-    return ({obj, context})=> {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
-      return id ? loader.load(id) : null;
-    };
-  }
-
-  loadMany ({collection, field}) {
-    return ({obj, context})=> {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
-      return ids.length ? loader.loadMany(ids) : [];
-    };
-  }
-
-  resolveType (getType) {
-    return ({obj, info})=> {
-      const type = getType(obj);
-      return info.schema.getType(type);
-    };
-  }
-
-  stub () {
-    throw new Error('Unimplemented stub');
   }
 }

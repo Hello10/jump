@@ -7,7 +7,7 @@ import directGraphqlRequest from './directGraphqlRequest';
 import graphqlHandler from './graphqlHandler';
 import processSchema from './processSchema';
 import {
-  DocumentDoesNotExistError,
+  DoesNotExistError,
   GraphQLError,
   NotAuthorizedError
 } from './Errors';
@@ -18,7 +18,7 @@ export {
   Controller,
   contextBuilder,
   directGraphqlRequest,
-  DocumentDoesNotExistError,
+  DoesNotExistError,
   FirestoreCollection,
   GraphQLError,
   graphqlHandler,

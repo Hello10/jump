@@ -1,7 +1,8 @@
 import DataLoader from 'dataloader';
-import { omit, uniq, isObject, isNumber, isFunction, merge, difference, get } from 'lodash';
-import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
+import { compact, uniq, isNumber, isObject, omit, isFunction, merge, difference, get } from 'lodash';
+import Promise$1 from 'bluebird';
 import Logger from '@hello10/logger';
+import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
 import { graphql, formatError as formatError$1 } from 'graphql';
 import { makeExecutableSchema } from 'graphql-tools';
 
@@ -26,9 +27,20 @@ var Authorizers = {
   isPublic: isPublic
 };
 
+const logger = new Logger('jump');
+
+const logger$1 = logger.child('Collection');
 class Collection {
   static get(args) {
     return new this(args);
+  }
+
+  constructor({
+    getCollection,
+    getLoader
+  }) {
+    this.getCollection = getCollection;
+    this.getLoader = getLoader;
   }
 
   get name() {
@@ -39,91 +51,364 @@ class Collection {
     throw new Error('Collection child class must implement .collection');
   }
 
-  get loader() {
-    return new DataLoader(ids => {
-      return this.getMany({
-        ids
-      });
-    });
-  }
-
   create() {
     throw new Error('Collection child class must implement .create');
+  }
+
+  createAll({
+    datas
+  }) {
+    return Promise$1.map(datas, data => this.create({
+      data
+    }));
+  }
+
+  findOrCreate({
+    query,
+    data
+  }) {
+    try {
+      const _this = this;
+
+      return Promise$1.resolve(_this.findOne({
+        query
+      })).then(function (doc) {
+        return doc || _this.create({
+          data
+        });
+      });
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
   }
 
   exists() {
     throw new Error('Collection child class must implement .exists');
   }
 
+  existsAssert({
+    id
+  }) {
+    return this.exists({
+      id,
+      assert: true
+    });
+  }
+
+  existsAll({
+    ids,
+    assert = false
+  }) {
+    try {
+      const _this2 = this;
+
+      return Promise$1.resolve(_this2.getAll({
+        ids,
+        assert
+      })).then(function (docs) {
+        return docs.every(doc => !!doc);
+      });
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  existsAllAssert({
+    ids
+  }) {
+    return this.existsAll({
+      ids,
+      assert: true
+    });
+  }
+
   get() {
     throw new Error('Collection child class must implement .get');
   }
 
-  getSafe({
+  getAssert({
     id
   }) {
     return this.get({
       id,
-      safe: true
+      assert: true
     });
   }
 
-  getMany() {
-    throw new Error('Collection child class must implement .getMany');
+  getAll() {
+    throw new Error('Collection child class must implement .getAll');
   }
 
-  getManySafe({
+  getAllAssert({
     ids
   }) {
-    return this.getMany({
+    return this.getAll({
       ids,
-      safe: true
+      assert: true
     });
   }
 
-  find() {}
-
-  set() {
-    throw new Error('Collection child class must implement .set');
+  find() {
+    throw new Error('Collection child class must implement .find');
   }
 
-  setSafe({
-    id,
-    data
+  findOne({
+    query,
+    sort,
+    select
   }) {
-    return this.setMany({
+    try {
+      const _this3 = this;
+
+      return Promise$1.resolve(_this3.find({
+        limit: 1,
+        query,
+        sort,
+        select
+      })).then(function (docs) {
+        return docs.length > 0 ? docs[0] : null;
+      });
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  findIds({
+    query
+  }) {
+    try {
+      const _this4 = this;
+
+      return Promise$1.resolve(_this4.find({
+        query,
+        select: ['id']
+      })).then(function (docs) {
+        return docs.map(({
+          id
+        }) => id);
+      });
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  list({
+    limit,
+    sort,
+    start_at,
+    start_after
+  } = {}) {
+    try {
+      const _this5 = this;
+
+      return Promise$1.resolve(_this5.find({
+        limit,
+        sort,
+        start_at,
+        start_after
+      }));
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  update() {
+    throw new Error('Collection child class must implement .update');
+  }
+
+  updateAssert({
+    id,
+    data,
+    merge = true
+  }) {
+    return this.update({
       id,
       data,
-      safe: true
+      merge,
+      assert: true
     });
   }
 
-  merge() {
-    throw new Error('Collection child class must implement .merge');
-  }
-
-  mergeSafe({
-    id,
-    data
+  updateAll({
+    ids,
+    data,
+    merge = true,
+    assert = false
   }) {
-    return this.merge({
-      id,
+    try {
+      const _this6 = this;
+
+      _this6._addUpdatedAt(data);
+
+      return Promise$1.resolve(Promise$1.map(ids, id => {
+        return _this6.update({
+          id,
+          data,
+          merge,
+          assert
+        });
+      }));
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  updateAllAssert({
+    ids,
+    data,
+    merge = true
+  }) {
+    return this.update({
+      ids,
       data,
-      safe: true
+      merge,
+      assert: true
     });
+  }
+
+  updateMany({
+    query,
+    data,
+    merge = true
+  }) {
+    try {
+      const _this7 = this;
+
+      return Promise$1.resolve(_this7.findIds({
+        query
+      })).then(function (ids) {
+        return _this7.updateAll({
+          ids,
+          data,
+          merge
+        });
+      });
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
   }
 
   delete() {
     throw new Error('Collection child class must implement .delete');
   }
 
-  deleteSafe({
+  deleteAssert({
     id
   }) {
     return this.delete({
       id,
-      safe: true
+      assert: true
     });
+  }
+
+  deleteAll() {
+    throw new Error('Collection child class must implement .deleteAll');
+  }
+
+  deleteMany({
+    query
+  }) {
+    try {
+      const _this8 = this;
+
+      return Promise$1.resolve(_this8.findIds({
+        query
+      })).then(function (ids) {
+        return _this8.deleteAll({
+          ids
+        });
+      });
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  get loader() {
+    const _this9 = this;
+
+    return new DataLoader(function (ids) {
+      try {
+        logger$1.debug({
+          message: `calling DataLoader for ${_this9.name}`,
+          ids
+        });
+        return Promise$1.resolve(_this9.getAll({
+          ids
+        })).then(function (docs) {
+          const lookup = new Map();
+
+          for (const doc of docs) {
+            lookup.set(doc.id, doc);
+          }
+
+          return ids.map(id => {
+            return lookup.has(id) ? lookup.get(id) : null;
+          });
+        });
+      } catch (e) {
+        return Promise$1.reject(e);
+      }
+    });
+  }
+
+  load(id) {
+    if (!id) {
+      throw new Error('Missing id');
+    }
+
+    const loader = this.getLoader(this.name);
+    return loader.load(id);
+  }
+
+  loadMany(ids) {
+    if (!ids.length) {
+      return [];
+    }
+
+    const loader = this.getLoader(this.name);
+    return loader.loadMany(ids);
+  }
+
+  loadManyCompact(ids) {
+    try {
+      const _this10 = this;
+
+      return Promise$1.resolve(_this10.loadMany(ids)).then(compact);
+    } catch (e) {
+      return Promise$1.reject(e);
+    }
+  }
+
+  _timestamp() {
+    return new Date();
+  }
+
+  _addTimestamps(obj, time) {
+    if (!time) {
+      time = this._timestamp();
+    }
+
+    this._addCreatedAt(obj, time);
+
+    this._addUpdatedAt(obj, time);
+
+    return obj;
+  }
+
+  _addCreatedAt(obj, time) {
+    if (!('created_at' in obj)) {
+      obj.created_at = time || this._timestamp();
+    }
+
+    return obj;
+  }
+
+  _addUpdatedAt(obj, time) {
+    if (!('updated_at' in obj)) {
+      obj.updated_at = time || this._timestamp();
+    }
+
+    return obj;
   }
 
 }
@@ -158,7 +443,7 @@ class GraphQLError extends ApolloError {
     code = 'GraphQLError',
     message = 'GraphQL error',
     params
-  }) {
+  } = {}) {
     if (message.constructor === Function) {
       message = message(params);
     }
@@ -172,15 +457,28 @@ class GraphQLError extends ApolloError {
   }
 
 }
-class DocumentDoesNotExistError extends GraphQLError {
+class DoesNotExistError extends GraphQLError {
   constructor(params) {
-    const {
-      type,
-      id
-    } = params;
     super({
-      code: 'DocumentDoesNotExist',
-      message: `Document ${type} with id ${id} does not exist`,
+      code: 'DoesNotExist',
+      message: ({
+        type,
+        id,
+        ids,
+        query
+      }) => {
+        let missing = '';
+
+        if (id) {
+          missing = ` for id = ${id}`;
+        } else if (ids) {
+          missing = ` for ids = [${ids.join(',')}]`;
+        } else if (query) {
+          missing = ` for query = ${query}`;
+        }
+
+        return `Could not find ${type}${missing}`;
+      },
       params
     });
   }
@@ -198,17 +496,14 @@ class NotAuthorizedError extends GraphQLError {
 }
 
 class FirestoreCollection extends Collection {
-  constructor({
-    Admin,
-    app,
-    getCollection,
-    getLoader
-  }) {
-    super();
+  constructor(options) {
+    super(options);
+    const {
+      Admin,
+      app
+    } = options;
     this.Admin = Admin;
     this.app = app;
-    this.getCollection = getCollection;
-    this.getLoader = getLoader;
   }
 
   get auth() {
@@ -223,78 +518,274 @@ class FirestoreCollection extends Collection {
     return this.collection.doc(id);
   }
 
-  add({
+  create({
     data
   }) {
     try {
       const _this = this;
 
-      data = omit(data, 'id');
-
-      const timestamp = _this._timestampField();
-
-      data.created_at = timestamp;
-      data.updated_at = timestamp;
-      return Promise.resolve(_this.collection.add(data)).then(function (ref) {
-        data.id = ref.id;
-        return data;
-      });
+      return Promise.resolve(_this.add({
+        data
+      }));
     } catch (e) {
       return Promise.reject(e);
     }
   }
 
-  set({
+  exists({
     id,
-    data,
-    merge = true
+    assert = false
   }) {
     try {
       const _this2 = this;
 
-      data = omit(data, 'id');
-      data.updated_at = _this2._timestampField();
-
       const ref = _this2.doc(id);
 
-      return Promise.resolve(ref.set(data, {
-        merge
-      })).then(function () {
-        return _this2.get({
-          id
-        });
+      return Promise.resolve(ref.get()).then(function (snap) {
+        const {
+          exists
+        } = snap;
+
+        if (assert && !exists) {
+          const type = _this2.name();
+
+          throw new DoesNotExistError({
+            type,
+            id
+          });
+        }
+
+        return exists;
       });
     } catch (e) {
       return Promise.reject(e);
     }
   }
 
-  addOrSetByField({
-    field,
-    data,
-    add = x => x
+  get({
+    id,
+    assert = false
   }) {
     try {
       const _this3 = this;
 
-      const value = data[field];
-      return Promise.resolve(_this3.findOneByField(field)(value)).then(function (doc) {
-        if (doc) {
-          const {
+      const ref = _this3.doc(id);
+
+      return Promise.resolve(ref.get()).then(function (snap) {
+        if (assert && !snap.exists) {
+          const type = _this3.name();
+
+          throw new DoesNotExistError({
+            type,
             id
-          } = doc;
-          return _this3.set({
-            id,
-            data
-          });
-        } else {
-          return Promise.resolve(add(data)).then(function (_add) {
-            data = _add;
-            return _this3.add({
-              data
-            });
           });
         }
+
+        return _this3._snapToDoc(snap);
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  getAll({
+    ids,
+    assert = false
+  }) {
+    try {
+      const _this4 = this;
+
+      if (!ids || ids.length === 0) {
+        return Promise.resolve([]);
+      }
+
+      const uniques = uniq(ids);
+      const refs = uniques.map(id => _this4.doc(id));
+      return Promise.resolve(_this4.firestore.getAll(refs)).then(function (snaps) {
+        const docs = snaps.map(snap => _this4._snapToDoc(snap));
+        const docs_by_id = {};
+
+        for (const doc of docs) {
+          if (doc) {
+            docs_by_id[doc.id] = doc;
+          }
+        }
+
+        const missing_ids = [];
+        const result = ids.map(id => {
+          const exists = (id in docs_by_id);
+
+          if (!exists) {
+            missing_ids.push(id);
+          }
+
+          return exists ? docs_by_id[id] : null;
+        });
+
+        if (assert && missing_ids.length) {
+          throw new DoesNotExistError({
+            type: _this4.name,
+            ids: missing_ids
+          });
+        } else {
+          return result;
+        }
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  find({
+    query,
+    limit,
+    sort,
+    start_at,
+    start_after,
+    select
+  } = {}) {
+    try {
+      const _this5 = this;
+
+      function _temp2() {
+        if (limit) {
+          if (!isNumber(limit)) {
+            invalid('limit');
+          }
+
+          cursor = cursor.limit(limit);
+        }
+
+        if (select) {
+          if (!Array.isArray(select)) {
+            invalid('select');
+          }
+
+          cursor = cursor.select(...select);
+        }
+
+        return Promise.resolve(cursor.get()).then(function (snap) {
+          return snap.docs.map(_this5._snapToDoc);
+        });
+      }
+
+      function invalid(field) {
+        throw new Error(`Invalid ${field} for find`);
+      }
+
+      let cursor = _this5.collection;
+
+      if (query) {
+        let parts;
+
+        if (isObject(query)) {
+          parts = Object.entries(query).map(([field, value]) => {
+            return [field, '==', value];
+          });
+        } else if (Array.isArray(query)) {
+          parts = Array.isArray(query[0]) ? query : [query];
+        } else {
+          invalid('query');
+        }
+
+        for (const part of parts) {
+          if (part.length !== 3) {
+            invalid('query');
+          }
+
+          const [field, op, value] = part;
+          cursor = cursor.where(field, op, value);
+        }
+      }
+
+      if (sort) {
+        if (!Array.isArray(sort)) {
+          sort = [sort];
+        }
+
+        cursor = cursor.orderBy(...sort);
+      }
+
+      const start = start_after || start_at;
+
+      const _temp = function () {
+        if (start) {
+          return Promise.resolve(_this5.doc(start).get()).then(function (doc) {
+            const fn = start_after ? 'startAfter' : 'startAt';
+            cursor = cursor[fn](doc);
+          });
+        }
+      }();
+
+      return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  update(args) {
+    try {
+      const _this6 = this;
+
+      return Promise.resolve(_this6.set(args));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  delete({
+    id,
+    assert = true
+  }) {
+    try {
+      const _this7 = this;
+
+      function _temp4() {
+        const ref = _this7.doc(id);
+
+        return ref.delete();
+      }
+
+      const _temp3 = function () {
+        if (assert) {
+          return Promise.resolve(_this7.existsAssert({
+            id
+          })).then(function () {});
+        }
+      }();
+
+      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  deleteAll({
+    ids
+  }) {
+    const batch = this.Admin.firestore.batch();
+
+    for (const id of ids) {
+      const ref = this.doc(id);
+      batch.delete(ref);
+    }
+
+    return batch.commit();
+  }
+
+  add({
+    data
+  }) {
+    try {
+      const _this8 = this;
+
+      data = omit(data, 'id');
+
+      _this8._addTimestamps(data);
+
+      return Promise.resolve(_this8.collection.add(data)).then(function (ref) {
+        data.id = ref.id;
+        return data;
       });
     } catch (e) {
       return Promise.reject(e);
@@ -307,208 +798,29 @@ class FirestoreCollection extends Collection {
     add = x => x
   }) {
     try {
-      const _this4 = this;
+      const _this9 = this;
 
-      return Promise.resolve(_this4.get({
+      return Promise.resolve(_this9.get({
         id
       })).then(function (user) {
-        const _temp = function () {
+        const _temp5 = function () {
           if (!user) {
-            return Promise.resolve(add(data)).then(function (_add2) {
-              data = _add2;
-              return Promise.resolve(_this4.set({
+            return Promise.resolve(add(data)).then(function (_add) {
+              data = _add;
+              return Promise.resolve(_this9.set({
                 id,
                 data,
                 merge: false
-              })).then(function (_this4$set) {
-                user = _this4$set;
+              })).then(function (_this9$set) {
+                user = _this9$set;
               });
             });
           }
         }();
 
-        return _temp && _temp.then ? _temp.then(function () {
+        return _temp5 && _temp5.then ? _temp5.then(function () {
           return user;
         }) : user;
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  exists({
-    id
-  }) {
-    try {
-      const _this5 = this;
-
-      const ref = _this5.doc(id);
-
-      return Promise.resolve(ref.get()).then(function (snap) {
-        return snap.exists;
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  get({
-    id,
-    safe = false
-  }) {
-    try {
-      const _this6 = this;
-
-      const ref = _this6.doc(id);
-
-      return Promise.resolve(ref.get()).then(function (snap) {
-        if (safe && !snap.exists) {
-          const type = _this6.name();
-
-          throw new DocumentDoesNotExistError({
-            type,
-            id
-          });
-        }
-
-        return _this6._snapToDoc(snap);
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  getAssert({
-    id
-  }) {
-    try {
-      const _this7 = this;
-
-      return Promise.resolve(_this7.get({
-        id,
-        safe: true
-      }));
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  getMany({
-    ids
-  }) {
-    try {
-      const _this8 = this;
-
-      if (!ids || ids.length === 0) {
-        return Promise.resolve([]);
-      }
-
-      const uniques = uniq(ids);
-      const refs = uniques.map(id => _this8.doc(id));
-      return Promise.resolve(_this8.firestore.getAll(refs)).then(function (snaps) {
-        const docs = snaps.map(snap => _this8._snapToDoc(snap));
-        const docs_by_id = {};
-
-        for (const doc of docs) {
-          if (doc) {
-            docs_by_id[doc.id] = doc;
-          }
-        }
-
-        return ids.map(id => {
-          return id in docs_by_id ? docs_by_id[id] : null;
-        });
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  find({
-    where,
-    limit,
-    order_by,
-    select
-  } = {}) {
-    try {
-      const _this9 = this;
-
-      function invalid(field) {
-        throw new Error(`Invalid ${field} for find`);
-      }
-
-      let query = _this9.collection;
-
-      if (where) {
-        let parts;
-
-        if (isObject(where)) {
-          parts = Object.entries(where).map(([field, value]) => {
-            return [field, '==', value];
-          });
-        } else if (Array.isArray(where)) {
-          parts = Array.isArray(where[0]) ? where : [where];
-        } else {
-          invalid('where');
-        }
-
-        for (const part of parts) {
-          if (part.length !== 3) {
-            invalid('where');
-          }
-
-          const [field, op, value] = part;
-          query = query.where(field, op, value);
-        }
-      }
-
-      if (order_by) {
-        if (!Array.isArray(order_by)) {
-          order_by = [order_by];
-        }
-
-        query = query.orderBy(...order_by);
-      }
-
-      if (limit) {
-        if (!isNumber(limit)) {
-          invalid('limit');
-        }
-
-        query = query.limit(limit);
-      }
-
-      if (select) {
-        if (!Array.isArray(select)) {
-          invalid('select');
-        }
-
-        query = query.select(...select);
-      }
-
-      return Promise.resolve(query.get()).then(function (snap) {
-        return snap.docs.map(_this9._snapToDoc);
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  }
-
-  findOne({
-    where,
-    order_by,
-    select
-  }) {
-    try {
-      const _this10 = this;
-
-      return Promise.resolve(_this10.find({
-        limit: 1,
-        where,
-        order_by,
-        select
-      })).then(function (docs) {
-        return docs.length > 0 ? docs[0] : null;
       });
     } catch (e) {
       return Promise.reject(e);
@@ -518,64 +830,84 @@ class FirestoreCollection extends Collection {
   findOneByField(field) {
     return value => {
       return this.findOne({
-        where: [field, '==', value]
+        query: [field, '==', value]
       });
     };
   }
 
-  delete({
+  set({
     id,
-    ids,
-    where
+    data,
+    merge = true,
+    assert = false,
+    get = true
   }) {
     try {
-      const _this11 = this;
+      const _this10 = this;
 
-      function _temp3() {
-        if (ids.length === 0) {
-          return Promise.resolve();
-        }
+      function _temp7() {
+        data = omit(data, 'id');
 
-        const batch = _this11.firestore.batch();
+        _this10._addUpdatedAt(data);
 
-        for (const id of ids) {
-          const ref = _this11.doc(id);
+        const ref = _this10.doc(id);
 
-          batch.delete(ref);
-        }
-
-        return batch.commit();
+        return Promise.resolve(ref.set(data, {
+          merge
+        })).then(function (set) {
+          return get ? _this10.get({
+            id
+          }) : set;
+        });
       }
 
-      if (id) {
-        const ref = _this11.doc(id);
-
-        return Promise.resolve(ref.delete());
-      }
-
-      if (ids && where) {
-        throw new Error('Delete call should pass ids or where not both');
-      }
-
-      const _temp2 = function () {
-        if (where) {
-          return Promise.resolve(_this11.find({
-            where
-          })).then(function (docs) {
-            ids = docs.map(({
-              id
-            }) => id);
-          });
+      const _temp6 = function () {
+        if (assert) {
+          return Promise.resolve(_this10.existsAssert({
+            id
+          })).then(function () {});
         }
       }();
 
-      return Promise.resolve(_temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2));
+      return Promise.resolve(_temp6 && _temp6.then ? _temp6.then(_temp7) : _temp7(_temp6));
     } catch (e) {
       return Promise.reject(e);
     }
   }
 
-  _timestampField() {
+  addOrSetByField({
+    field,
+    data,
+    add = x => x
+  }) {
+    try {
+      const _this11 = this;
+
+      const value = data[field];
+      return Promise.resolve(_this11.findOneByField(field)(value)).then(function (doc) {
+        if (doc) {
+          const {
+            id
+          } = doc;
+          return _this11.set({
+            id,
+            data
+          });
+        } else {
+          return Promise.resolve(add(data)).then(function (_add2) {
+            data = _add2;
+            return _this11.add({
+              data
+            });
+          });
+        }
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  }
+
+  _timestamp() {
     return this.Admin.firestore.FieldValue.serverTimestamp();
   }
 
@@ -618,8 +950,6 @@ function _extends() {
   return _extends.apply(this, arguments);
 }
 
-const logger = new Logger('jump');
-
 function _catch(body, recover) {
   try {
     var result = body();
@@ -645,7 +975,7 @@ class Controller {
     this.get = this._toCollection('get');
     this.list = this._toCollection('list');
     this.create = this._wrapToCollection('create');
-    this.set = this._wrapToCollection('set');
+    this.update = this._wrapToCollection('update');
     this.options = options;
     this.logger = logger.child('Controller');
   }
@@ -773,6 +1103,48 @@ class Controller {
     return result;
   }
 
+  load({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const id = obj[field];
+      return id ? loader.load(id) : null;
+    };
+  }
+
+  loadMany({
+    collection,
+    field
+  }) {
+    return ({
+      obj,
+      context
+    }) => {
+      const loader = context.getLoader(collection);
+      const ids = obj[field];
+      return ids.length ? loader.loadMany(ids) : [];
+    };
+  }
+
+  resolveType(getType) {
+    return ({
+      obj,
+      info
+    }) => {
+      const type = getType(obj);
+      return info.schema.getType(type);
+    };
+  }
+
+  stub() {
+    throw new Error('Unimplemented stub');
+  }
+
   delete(request) {
     try {
       const _this2 = this;
@@ -781,7 +1153,10 @@ class Controller {
         const {
           id
         } = request.args;
-        return Promise.resolve(_this2.delete({
+
+        const collection = _this2.collection(request);
+
+        return Promise.resolve(collection.delete({
           id
         })).then(function (deleted) {
           function _temp2() {
@@ -873,48 +1248,6 @@ class Controller {
         return Promise.reject(e);
       }
     };
-  }
-
-  load({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
-      return id ? loader.load(id) : null;
-    };
-  }
-
-  loadMany({
-    collection,
-    field
-  }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
-      return ids.length ? loader.loadMany(ids) : [];
-    };
-  }
-
-  resolveType(getType) {
-    return ({
-      obj,
-      info
-    }) => {
-      const type = getType(obj);
-      return info.schema.getType(type);
-    };
-  }
-
-  stub() {
-    throw new Error('Unimplemented stub');
   }
 
 }
@@ -1130,7 +1463,7 @@ function makeSchema({
 }
 
 function formatError(error) {
-  console.error(error);
+  logger.error(error);
   let data = formatError$1(error);
   const {
     originalError: oerror
@@ -1302,5 +1635,5 @@ function processSchema({
   };
 }
 
-export { Authorizers, Collection, Controller, DocumentDoesNotExistError, FirestoreCollection, GraphQLError, NotAuthorizedError, contextBuilder, directGraphqlRequest, graphqlHandler, processSchema };
+export { Authorizers, Collection, Controller, DoesNotExistError, FirestoreCollection, GraphQLError, NotAuthorizedError, contextBuilder, directGraphqlRequest, graphqlHandler, processSchema };
 //# sourceMappingURL=index.esm.js.map
