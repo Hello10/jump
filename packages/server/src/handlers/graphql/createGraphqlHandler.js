@@ -1,9 +1,19 @@
+import {makeExecutableSchema} from 'graphql-tools';
 import {ApolloServer} from 'apollo-server-cloud-functions';
 
-import makeSchema from './makeSchema';
+import processOptions from '../processOptions';
 import formatErrorDefault from './formatError';
+import exposeResolvers from './exposeResolvers';
 
-export default function graphqlHandler ({
+function makeSchema ({Schema, Controllers, Scalars, options}) {
+  const resolvers = exposeResolvers({Controllers, Scalars, options});
+  return makeExecutableSchema({
+    typeDefs: Schema,
+    resolvers
+  });
+}
+
+export default function createGraphqlHandler ({
   Controllers,
   Scalars,
   Schema,
@@ -20,7 +30,7 @@ export default function graphqlHandler ({
   }
 
   const schema = makeSchema({
-    options: opts_controller,
+    options: processOptions(opts_controller),
     Schema,
     Controllers,
     Scalars

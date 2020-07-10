@@ -1,6 +1,6 @@
 import {get, difference} from 'lodash';
 
-import expose from './expose';
+import exposeResolvers from './exposeResolvers';
 
 // We group definitions by their kind and also build up some enums that
 // can be written to the shared package so we can use those instead of
@@ -91,7 +91,7 @@ function checkSchema ({groups: schema_groups, resolvers}) {
 }
 
 export default function processSchema ({Schema, Controllers, Scalars}) {
-  const resolvers = expose({Controllers, Scalars});
+  const resolvers = exposeResolvers({Controllers, Scalars});
   const {definitions} = Schema;
   const {enums, groups} = processDefinitions(definitions);
   const errors = checkSchema({resolvers, groups});

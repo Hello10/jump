@@ -1,7 +1,7 @@
 import * as GraphQL from 'graphql';
 
-import logger from './logger';
-import {GraphQLError} from './Errors';
+import logger from '../../logger';
+import {GraphQLError} from '../../Errors';
 
 export default function formatError (error) {
   logger.error(error);

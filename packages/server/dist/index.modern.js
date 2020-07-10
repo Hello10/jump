@@ -1,46 +1,51 @@
 import DataLoader from 'dataloader';
-import { compact, uniq, isObject, isNumber, omit, isFunction, merge, difference, get } from 'lodash';
+import { compact, uniq, isObject, isNumber, omit, merge, isFunction, difference, get } from 'lodash';
 import Promise from 'bluebird';
+import { singleton } from '@hello10/util';
 import Logger from '@hello10/logger';
 import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
-import { graphql, formatError as formatError$1 } from 'graphql';
 import { makeExecutableSchema } from 'graphql-tools';
-
-function isExisting({
-  context
-}) {
-  return !!context.user;
-}
-function isSignedIn({
-  context
-}) {
-  return !!context.user_id;
-}
-function isPublic() {
-  return true;
-}
-
-var Authorizers = {
-  __proto__: null,
-  isExisting: isExisting,
-  isSignedIn: isSignedIn,
-  isPublic: isPublic
-};
+import { formatError as formatError$1, graphql } from 'graphql';
+import Express from 'express';
+import Cors from 'cors';
 
 const logger = new Logger('jump');
 
-const logger$1 = logger.child('Collection');
-class Collection {
-  static get(args) {
-    return new this(args);
+function initialize(options) {
+  const {
+    namespace
+  } = options;
+  const required = ['Admin', 'app', 'Enums', 'getCollection', 'getService'];
+
+  for (const name of required) {
+    if (!options[name]) {
+      throw new Error(`Missing required argument for ${namespace}: ${name}`);
+    }
+
+    this[name] = options[name];
   }
 
-  constructor({
-    getCollection,
-    getLoader
-  }) {
-    this.getCollection = getCollection;
-    this.getLoader = getLoader;
+  let {
+    logger: logger$1
+  } = options;
+
+  if (!logger$1) {
+    logger$1 = logger;
+  }
+
+  this.logger = logger$1.child(`${namespace}:${this.name}`);
+}
+
+class Collection {
+  constructor(options) {
+    initialize.call(this, {
+      namespace: 'Collection',
+      ...options
+    });
+  }
+
+  bucket(name) {
+    return this.Admin.storage().bucket(name);
   }
 
   get name() {
@@ -273,10 +278,11 @@ class Collection {
     var _this = this;
 
     return new DataLoader(async function (ids) {
-      logger$1.debug({
+      _this.logger.debug({
         message: `calling DataLoader for ${_this.name}`,
         ids
       });
+
       const docs = await _this.getAll({
         ids
       });
@@ -348,6 +354,7 @@ class Collection {
   }
 
 }
+singleton(Collection);
 
 function timestampsToDates(obj) {
   if (!obj) {
@@ -762,42 +769,247 @@ class FirestoreCollection extends Collection {
 
 }
 
+function isExisting({
+  context
+}) {
+  return !!context.user;
+}
+function isSignedIn({
+  context
+}) {
+  return !!context.user_id;
+}
+function isPublic() {
+  return true;
+}
+
+var Authorizers = {
+  __proto__: null,
+  isExisting: isExisting,
+  isSignedIn: isSignedIn,
+  isPublic: isPublic
+};
+
+function instanceGetter({
+  Constructors,
+  options
+}) {
+  return function getter(name) {
+    const Constructor = Constructors[name];
+
+    if (!Constructor) {
+      const msg = `Constructor with name ${name} does not exist`;
+      throw new Error(msg);
+    }
+
+    return Constructor.instance(options);
+  };
+}
+
+function processOptions(input) {
+  const {
+    Services,
+    Collections,
+    ...options
+  } = input;
+  options.getService = instanceGetter({
+    Constructors: Services,
+    options
+  });
+  options.getCollection = instanceGetter({
+    Constructors: Collections,
+    options
+  });
+  return options;
+}
+
+function getToken(request) {
+  const header = request.get('Authorization');
+  const prefix = /^Bearer /;
+
+  if (header && header.match(prefix)) {
+    return header.replace(prefix, '');
+  } else {
+    return null;
+  }
+}
+
+function contextBuilder({
+  loadSession,
+  getToken: getToken$1 = getToken,
+  start = () => {},
+  ...options
+}) {
+  return async ({
+    req
+  } = {}) => {
+    const logger$1 = logger.child('contextBuilder');
+    await start();
+    options = processOptions(options);
+    const {
+      getCollection
+    } = options;
+    const loaders = {};
+
+    function getLoader(arg) {
+      const name = arg.name || arg;
+
+      if (!(name in loaders)) {
+        const collection = getCollection(name);
+        loaders[name] = collection.loader;
+      }
+
+      return loaders[name];
+    }
+
+    let session_id = null;
+    let user_id = null;
+    let user = null;
+    let load_user_error = null;
+    const token = getToken$1(req);
+
+    if (token) {
+      try {
+        ({
+          session_id,
+          user_id,
+          user
+        } = await loadSession({
+          token,
+          getCollection
+        }));
+        logger$1.debug('Loaded session', {
+          session_id,
+          user
+        });
+      } catch (error) {
+        logger$1.error('Error loading session', error);
+        load_user_error = error;
+      }
+    }
+
+    return {
+      session_id,
+      user_id,
+      user,
+      load_user_error,
+      getLoader,
+      ...options
+    };
+  };
+}
+
+function formatError(error) {
+  logger.error(error);
+  let data = formatError$1(error);
+  const {
+    originalError: oerror
+  } = error;
+
+  if (oerror && oerror.expected) {
+    data.code = oerror.code;
+  } else {
+    const public_error = new GraphQLError();
+    data = formatError$1(public_error);
+    data.code = public_error.code;
+  }
+
+  return data;
+}
+
+function exposeResolvers({
+  Controllers,
+  Scalars,
+  options
+}) {
+  const resolvers = {};
+
+  for (const [name, Controller] of Object.entries(Controllers)) {
+    logger.debug(`Exposing controller ${name}`);
+    const controller = new Controller(options);
+    merge(resolvers, controller.expose());
+  }
+
+  merge(resolvers, Scalars);
+  return resolvers;
+}
+
+function makeSchema({
+  Schema,
+  Controllers,
+  Scalars,
+  options
+}) {
+  const resolvers = exposeResolvers({
+    Controllers,
+    Scalars,
+    options
+  });
+  return makeExecutableSchema({
+    typeDefs: Schema,
+    resolvers
+  });
+}
+
+function createGraphqlHandler({
+  Controllers,
+  Scalars,
+  Schema,
+  options = {}
+}) {
+  const {
+    server: opts_server = {},
+    handler: opts_handler = {},
+    controller: opts_controller = {}
+  } = options;
+
+  if (!opts_server.formatError) {
+    opts_server.formatError = formatError;
+  }
+
+  const schema = makeSchema({
+    options: processOptions(opts_controller),
+    Schema,
+    Controllers,
+    Scalars
+  });
+  const server = new ApolloServer({ ...opts_server,
+    schema
+  });
+  return server.createHandler(opts_handler);
+}
+
 function capitalize(str) {
   return str[0].toUpperCase() + str.slice(1);
 }
 
 const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
-class Controller {
-  constructor(options = {}) {
+class GraphQLController {
+  constructor(options) {
     this.exists = this._toCollection('exists');
     this.get = this._toCollection('get');
     this.list = this._toCollection('list');
     this.create = this._wrapToCollection('create');
     this.update = this._wrapToCollection('update');
-    this.options = options;
-    this.logger = logger.child('Controller');
+
+    if (options) {
+      initialize.call(this, {
+        namespace: 'GraphQLController',
+        ...options
+      });
+    }
   }
 
   get name() {
     throw new Error('Child class must implement .name');
   }
 
-  static resolvers() {
+  resolvers() {
     throw new Error('Child class must implement .resolvers');
   }
 
-  collection({
-    context,
-    name
-  }) {
-    return context.getCollection(name || this.name);
-  }
-
-  loader({
-    context,
-    name
-  }) {
-    return context.getLoader(name || this.name);
+  collection(name) {
+    return this.getCollection(name || this.name);
   }
 
   expose() {
@@ -887,7 +1099,7 @@ class Controller {
               rlogger.error('Expected GraphQL error', error);
               throw error;
             } else {
-              rlogger.error('Unexpected GraphQL error', error);
+              rlogger.error(error);
               throw new GraphQLError();
             }
           }
@@ -1008,225 +1220,6 @@ class Controller {
 
 }
 
-function getToken(request) {
-  const header = request.get('Authorization');
-  const prefix = /^Bearer /;
-
-  if (header && header.match(prefix)) {
-    return header.replace(prefix, '');
-  } else {
-    return null;
-  }
-}
-
-function contextBuilder({
-  Collections,
-  loadSession,
-  options,
-  getToken: getToken$1 = getToken,
-  onLoad = () => {}
-}) {
-  let loaded = false;
-  return async ({
-    req
-  }) => {
-    const logger$1 = logger.child({
-      name: 'contextBuilder',
-      req: {
-        url: req.url,
-        method: req.method,
-        protocol: req.protocol,
-        requestId: req.requestId,
-        ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-        headers: req.headers
-      }
-    });
-
-    if (!loaded) {
-      logger$1.debug('calling onLoad');
-      await onLoad();
-      loaded = true;
-    }
-
-    const loaders = {};
-
-    function getLoader(arg) {
-      const name = arg.name || arg;
-
-      if (!(name in loaders)) {
-        const collection = getCollection(name);
-        loaders[name] = collection.loader;
-      }
-
-      return loaders[name];
-    }
-
-    function getCollection(arg) {
-      const name = arg.name || arg;
-      const Collection = Collections[name];
-
-      if (!Collection) {
-        const msg = `Collection with name ${name} does not exist`;
-        logger$1.error(msg);
-        throw new Error(msg);
-      }
-
-      return Collection.get({
-        getCollection,
-        getLoader,
-        ...options
-      });
-    }
-
-    let session_id = null;
-    let user_id = null;
-    let user = null;
-    let load_user_error = null;
-    const token = getToken$1(req);
-
-    if (token) {
-      try {
-        ({
-          session_id,
-          user_id,
-          user
-        } = await loadSession({
-          token,
-          getCollection
-        }));
-        logger$1.debug('Loaded session', {
-          session_id,
-          user
-        });
-      } catch (error) {
-        logger$1.error('Error loading session', error);
-        load_user_error = error;
-      }
-    }
-
-    return {
-      getCollection,
-      getLoader,
-      session_id,
-      user_id,
-      user,
-      load_user_error,
-      ...options
-    };
-  };
-}
-
-async function directGraphqlRequest({
-  Schema,
-  context,
-  query,
-  variables
-}) {
-  const rlogger = logger.child({
-    name: 'localGraphqlRequest',
-    query,
-    variables
-  });
-  rlogger.debug('Making request');
-  const root = {};
-  const response = await graphql(Schema, query, root, context, variables);
-  const {
-    data,
-    errors
-  } = response;
-
-  if (errors) {
-    const error = errors[0];
-    rlogger.error(error);
-    throw error;
-  } else {
-    rlogger.debug('Got response', {
-      data
-    });
-    return data;
-  }
-}
-
-function expose({
-  Controllers,
-  Scalars,
-  options
-}) {
-  const resolvers = {};
-
-  for (const [name, Controller] of Object.entries(Controllers)) {
-    logger.debug(`Exposing controller ${name}`);
-    const controller = new Controller(options);
-    merge(resolvers, controller.expose());
-  }
-
-  merge(resolvers, Scalars);
-  return resolvers;
-}
-
-function makeSchema({
-  Schema,
-  Controllers,
-  Scalars,
-  options
-}) {
-  const resolvers = expose({
-    Controllers,
-    Scalars,
-    options
-  });
-  return makeExecutableSchema({
-    typeDefs: Schema,
-    resolvers
-  });
-}
-
-function formatError(error) {
-  logger.error(error);
-  let data = formatError$1(error);
-  const {
-    originalError: oerror
-  } = error;
-
-  if (oerror && oerror.expected) {
-    data.code = oerror.code;
-  } else {
-    const public_error = new GraphQLError();
-    data = formatError$1(public_error);
-    data.code = public_error.code;
-  }
-
-  return data;
-}
-
-function graphqlHandler({
-  Controllers,
-  Scalars,
-  Schema,
-  options = {}
-}) {
-  const {
-    server: opts_server = {},
-    handler: opts_handler = {},
-    controller: opts_controller = {}
-  } = options;
-
-  if (!opts_server.formatError) {
-    opts_server.formatError = formatError;
-  }
-
-  const schema = makeSchema({
-    options: opts_controller,
-    Schema,
-    Controllers,
-    Scalars
-  });
-  const server = new ApolloServer({ ...opts_server,
-    schema
-  });
-  return server.createHandler(opts_handler);
-}
-
 function processDefinitions(definitions) {
   const enums = {};
   const groups = {
@@ -1332,7 +1325,7 @@ function processSchema({
   Controllers,
   Scalars
 }) {
-  const resolvers = expose({
+  const resolvers = exposeResolvers({
     Controllers,
     Scalars
   });
@@ -1354,5 +1347,216 @@ function processSchema({
   };
 }
 
-export { Authorizers, Collection, Controller, DoesNotExistError, FirestoreCollection, GraphQLError, NotAuthorizedError, contextBuilder, directGraphqlRequest, graphqlHandler, processSchema };
+function createHttpHandler({
+  Handler,
+  options
+}) {
+  const app = Express();
+  const cors = Cors(options.cors);
+  app.use(cors);
+  options = processOptions(options.handler);
+  const handler = new Handler(options);
+  handler.expose(app);
+  return app;
+}
+
+class Handler {
+  constructor({
+    start,
+    ...options
+  }) {
+    this.start = start;
+    initialize.call(this, {
+      namespace: 'Handler',
+      ...options
+    });
+  }
+
+  get name() {
+    throw new Error('Child class must implement .name');
+  }
+
+  actions() {
+    throw new Error('Handler should implement actions');
+  }
+
+  expose() {
+    throw new Error('Handler should implement expose');
+  }
+
+}
+
+class HttpHandler extends Handler {
+  expose(app) {
+    let actions = this.actions();
+
+    if (!Array.isArray(actions)) {
+      actions = Object.entries(actions).map(([route, action]) => {
+        if (!route.includes(' ')) {
+          route = `GET ${route}`;
+        }
+
+        const [method, path] = route.split(/\s+/);
+        return {
+          method,
+          path,
+          action
+        };
+      });
+    }
+
+    for (const {
+      method,
+      path,
+      action
+    } of actions) {
+      const fn = method.toLowerCase();
+      app[fn](path, this.handle(action));
+    }
+
+    return app;
+  }
+
+  handle(action) {
+    var _this = this;
+
+    return async function (request, response) {
+      await _this.start();
+      const {
+        params
+      } = request;
+
+      const logger = _this.logger.child({
+        action,
+        params
+      });
+
+      try {
+        logger.info('Handler running');
+
+        const method = _this[action].bind(_this);
+
+        const data = await method({
+          params,
+          request,
+          response
+        });
+        logger.info('Handler success', {
+          data
+        });
+        return response.json(data);
+      } catch (error) {
+        logger.error('Handler failure', error);
+        return response.status(error.status || 500).json({
+          error: error.message
+        });
+      }
+    };
+  }
+
+}
+
+function createPubSubHandler({
+  Handler,
+  options
+}) {
+  options = processOptions(options.handler);
+  const handler = new Handler(options);
+  return handler.expose();
+}
+
+class PubSubHandler extends Handler {
+  expose(topic) {
+    let actions = this.actions(topic);
+
+    if (!Array.isArray(actions)) {
+      actions = Object.entries(actions).map(([topic, action]) => {
+        return {
+          topic,
+          action
+        };
+      });
+    }
+
+    return actions.map(({
+      topic,
+      action
+    }) => {
+      const handler = this.handle(action);
+      return {
+        topic,
+        handler
+      };
+    }, {});
+  }
+
+  handle(action) {
+    var _this = this;
+
+    return async function (message, context) {
+      await _this.start();
+      const {
+        json,
+        data,
+        attributes
+      } = message;
+
+      const logger = _this.logger.child({
+        action,
+        message,
+        context
+      });
+
+      try {
+        logger.info('Handler running');
+
+        const method = _this[action].bind(_this);
+
+        const response = await method({
+          json,
+          data,
+          attributes,
+          context
+        });
+        logger.info('Handler success', response);
+      } catch (error) {
+        logger.error('Handler failure', error);
+      }
+    };
+  }
+
+}
+
+async function directGraphqlRequest({
+  Schema,
+  context,
+  query,
+  variables
+}) {
+  const rlogger = logger.child({
+    name: 'localGraphqlRequest',
+    query,
+    variables
+  });
+  rlogger.debug('Making request');
+  const root = {};
+  const response = await graphql(Schema, query, root, context, variables);
+  const {
+    data,
+    errors
+  } = response;
+
+  if (errors) {
+    const error = errors[0];
+    rlogger.error(error);
+    throw error;
+  } else {
+    rlogger.debug('Got response', {
+      data
+    });
+    return data;
+  }
+}
+
+export { Authorizers, Collection, DoesNotExistError, FirestoreCollection, GraphQLController, GraphQLError, HttpHandler, NotAuthorizedError, PubSubHandler, contextBuilder, createGraphqlHandler, createHttpHandler, createPubSubHandler, directGraphqlRequest, processSchema };
 //# sourceMappingURL=index.modern.js.map

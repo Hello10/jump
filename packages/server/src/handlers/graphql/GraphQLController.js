@@ -1,11 +1,10 @@
 import {isFunction} from 'lodash';
 
-import base_logger from './logger';
-
+import initialize from '../../initialize';
 import {
   GraphQLError,
   NotAuthorizedError
-} from './Errors';
+} from '../../Errors';
 
 // to: helpers
 function capitalize (str) {
@@ -14,17 +13,19 @@ function capitalize (str) {
 
 const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
 
-export default class Controller {
-  constructor (options = {}) {
-    this.options = options;
-    this.logger = base_logger.child('Controller');
+export default class GraphQLController {
+  constructor (options) {
+    // Only initialize if options are passed (we skip when building schema)
+    if (options) {
+      initialize.call(this, {namespace: 'GraphQLController', ...options});
+    }
   }
 
   get name () {
     throw new Error('Child class must implement .name');
   }
 
-  static resolvers () {
+  resolvers () {
     // Child class should implement this method and return
     // an object with this shape:
     //
@@ -57,12 +58,8 @@ export default class Controller {
     throw new Error('Child class must implement .resolvers');
   }
 
-  collection ({context, name}) {
-    return context.getCollection(name || this.name);
-  }
-
-  loader ({context, name}) {
-    return context.getLoader(name || this.name);
+  collection (name) {
+    return this.getCollection(name || this.name);
   }
 
   expose () {
@@ -138,7 +135,7 @@ export default class Controller {
               rlogger.error('Expected GraphQL error', error);
               throw error;
             } else {
-              rlogger.error('Unexpected GraphQL error', error);
+              rlogger.error(error);
               throw new GraphQLError();
             }
           }

@@ -1,33 +1,21 @@
-import base_logger from './logger';
+import base_logger from '../../logger';
+import processOptions from '../processOptions';
 import getTokenDefault from './getToken';
 
 export default function contextBuilder ({
-  Collections,
   loadSession,
-  options,
   getToken = getTokenDefault,
-  onLoad = ()=> {}
+  start = ()=> {},
+  ...options
 }) {
-  let loaded = false;
-  return async ({req})=> {
+  return async ({req} = {})=> {
     // TODO: support serializers in logger
-    const logger = base_logger.child({
-      name: 'contextBuilder',
-      req: {
-        url: req.url,
-        method: req.method,
-        protocol: req.protocol,
-        requestId: req.requestId,
-        ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-        headers: req.headers
-      }
-    });
+    const logger = base_logger.child('contextBuilder');
 
-    if (!loaded) {
-      logger.debug('calling onLoad');
-      await onLoad();
-      loaded = true;
-    }
+    await start();
+
+    options = processOptions(options);
+    const {getCollection} = options;
 
     const loaders = {};
     function getLoader (arg) {
@@ -37,22 +25,6 @@ export default function contextBuilder ({
         loaders[name] = collection.loader;
       }
       return loaders[name];
-    }
-
-    function getCollection (arg) {
-      const name = arg.name || arg;
-      const Collection = Collections[name];
-      if (!Collection) {
-        const msg = `Collection with name ${name} does not exist`;
-        logger.error(msg);
-        throw new Error(msg);
-      }
-
-      return Collection.get({
-        getCollection,
-        getLoader,
-        ...options
-      });
     }
 
     let session_id = null;
@@ -72,12 +44,11 @@ export default function contextBuilder ({
     }
 
     return {
-      getCollection,
-      getLoader,
       session_id,
       user_id,
       user,
       load_user_error,
+      getLoader,
       ...options
     };
   };

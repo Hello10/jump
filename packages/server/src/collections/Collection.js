@@ -1,19 +1,17 @@
 import DataLoader from 'dataloader';
 import {compact} from 'lodash';
 import Promise from 'bluebird';
+import {singleton} from '@hello10/util';
 
-import base_logger from './logger';
-
-const logger = base_logger.child('Collection');
+import initialize from '../initialize';
 
 export default class Collection {
-  static get (args) {
-    return new this(args);
+  constructor (options) {
+    initialize.call(this, {namespace: 'Collection', ...options});
   }
 
-  constructor ({getCollection, getLoader}) {
-    this.getCollection = getCollection;
-    this.getLoader = getLoader;
+  bucket (name) {
+    return this.Admin.storage().bucket(name);
   }
 
   // Leaf child classes MUST overide name getter that the name of the
@@ -192,7 +190,7 @@ export default class Collection {
 
   get loader () {
     return new DataLoader(async (ids)=> {
-      logger.debug({
+      this.logger.debug({
         message: `calling DataLoader for ${this.name}`,
         ids
       });
@@ -262,3 +260,5 @@ export default class Collection {
     return obj;
   }
 }
+
+singleton(Collection);

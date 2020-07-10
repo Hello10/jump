@@ -1,47 +1,83 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('dataloader'), require('lodash'), require('bluebird'), require('@hello10/logger'), require('apollo-server-cloud-functions'), require('graphql'), require('graphql-tools')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'dataloader', 'lodash', 'bluebird', '@hello10/logger', 'apollo-server-cloud-functions', 'graphql', 'graphql-tools'], factory) :
-  (global = global || self, factory(global.jumpServer = {}, global.dataloader, global.lodash, global.bluebird, global.Logger, global.apolloServerCloudFunctions, global.graphql, global.graphqlTools));
-}(this, (function (exports, DataLoader, lodash, Promise$1, Logger, apolloServerCloudFunctions, GraphQL, graphqlTools) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('dataloader'), require('lodash'), require('bluebird'), require('@hello10/util'), require('@hello10/logger'), require('apollo-server-cloud-functions'), require('graphql-tools'), require('graphql'), require('express'), require('cors')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'dataloader', 'lodash', 'bluebird', '@hello10/util', '@hello10/logger', 'apollo-server-cloud-functions', 'graphql-tools', 'graphql', 'express', 'cors'], factory) :
+  (global = global || self, factory(global.jumpServer = {}, global.dataloader, global.lodash, global.bluebird, global.util, global.Logger, global.apolloServerCloudFunctions, global.graphqlTools, global.graphql, global.express, global.cors));
+}(this, (function (exports, DataLoader, lodash, Promise$1, util, Logger, apolloServerCloudFunctions, graphqlTools, GraphQL, Express, Cors) {
   DataLoader = DataLoader && Object.prototype.hasOwnProperty.call(DataLoader, 'default') ? DataLoader['default'] : DataLoader;
   Promise$1 = Promise$1 && Object.prototype.hasOwnProperty.call(Promise$1, 'default') ? Promise$1['default'] : Promise$1;
   Logger = Logger && Object.prototype.hasOwnProperty.call(Logger, 'default') ? Logger['default'] : Logger;
+  Express = Express && Object.prototype.hasOwnProperty.call(Express, 'default') ? Express['default'] : Express;
+  Cors = Cors && Object.prototype.hasOwnProperty.call(Cors, 'default') ? Cors['default'] : Cors;
 
-  function isExisting({
-    context
-  }) {
-    return !!context.user;
-  }
-  function isSignedIn({
-    context
-  }) {
-    return !!context.user_id;
-  }
-  function isPublic() {
-    return true;
+  function _extends() {
+    _extends = Object.assign || function (target) {
+      for (var i = 1; i < arguments.length; i++) {
+        var source = arguments[i];
+
+        for (var key in source) {
+          if (Object.prototype.hasOwnProperty.call(source, key)) {
+            target[key] = source[key];
+          }
+        }
+      }
+
+      return target;
+    };
+
+    return _extends.apply(this, arguments);
   }
 
-  var Authorizers = {
-    __proto__: null,
-    isExisting: isExisting,
-    isSignedIn: isSignedIn,
-    isPublic: isPublic
-  };
+  function _objectWithoutPropertiesLoose(source, excluded) {
+    if (source == null) return {};
+    var target = {};
+    var sourceKeys = Object.keys(source);
+    var key, i;
+
+    for (i = 0; i < sourceKeys.length; i++) {
+      key = sourceKeys[i];
+      if (excluded.indexOf(key) >= 0) continue;
+      target[key] = source[key];
+    }
+
+    return target;
+  }
 
   const logger = new Logger('jump');
 
-  const logger$1 = logger.child('Collection');
-  class Collection {
-    static get(args) {
-      return new this(args);
+  function initialize(options) {
+    const {
+      namespace
+    } = options;
+    const required = ['Admin', 'app', 'Enums', 'getCollection', 'getService'];
+
+    for (const name of required) {
+      if (!options[name]) {
+        throw new Error(`Missing required argument for ${namespace}: ${name}`);
+      }
+
+      this[name] = options[name];
     }
 
-    constructor({
-      getCollection,
-      getLoader
-    }) {
-      this.getCollection = getCollection;
-      this.getLoader = getLoader;
+    let {
+      logger: logger$1
+    } = options;
+
+    if (!logger$1) {
+      logger$1 = logger;
+    }
+
+    this.logger = logger$1.child(`${namespace}:${this.name}`);
+  }
+
+  class Collection {
+    constructor(options) {
+      initialize.call(this, _extends({
+        namespace: 'Collection'
+      }, options));
+    }
+
+    bucket(name) {
+      return this.Admin.storage().bucket(name);
     }
 
     get name() {
@@ -329,10 +365,11 @@
 
       return new DataLoader(function (ids) {
         try {
-          logger$1.debug({
+          _this9.logger.debug({
             message: `calling DataLoader for ${_this9.name}`,
             ids
           });
+
           return Promise$1.resolve(_this9.getAll({
             ids
           })).then(function (docs) {
@@ -413,6 +450,7 @@
     }
 
   }
+  util.singleton(Collection);
 
   function timestampsToDates(obj) {
     if (!obj) {
@@ -933,25 +971,248 @@
 
   }
 
-  function _extends() {
-    _extends = Object.assign || function (target) {
-      for (var i = 1; i < arguments.length; i++) {
-        var source = arguments[i];
+  function isExisting({
+    context
+  }) {
+    return !!context.user;
+  }
+  function isSignedIn({
+    context
+  }) {
+    return !!context.user_id;
+  }
+  function isPublic() {
+    return true;
+  }
 
-        for (var key in source) {
-          if (Object.prototype.hasOwnProperty.call(source, key)) {
-            target[key] = source[key];
-          }
-        }
+  var Authorizers = {
+    __proto__: null,
+    isExisting: isExisting,
+    isSignedIn: isSignedIn,
+    isPublic: isPublic
+  };
+
+  function instanceGetter({
+    Constructors,
+    options
+  }) {
+    return function getter(name) {
+      const Constructor = Constructors[name];
+
+      if (!Constructor) {
+        const msg = `Constructor with name ${name} does not exist`;
+        throw new Error(msg);
       }
 
-      return target;
+      return Constructor.instance(options);
     };
+  }
 
-    return _extends.apply(this, arguments);
+  function processOptions(input) {
+    const {
+      Services,
+      Collections
+    } = input,
+          options = _objectWithoutPropertiesLoose(input, ["Services", "Collections"]);
+
+    options.getService = instanceGetter({
+      Constructors: Services,
+      options
+    });
+    options.getCollection = instanceGetter({
+      Constructors: Collections,
+      options
+    });
+    return options;
+  }
+
+  function getToken(request) {
+    const header = request.get('Authorization');
+    const prefix = /^Bearer /;
+
+    if (header && header.match(prefix)) {
+      return header.replace(prefix, '');
+    } else {
+      return null;
+    }
   }
 
   function _catch(body, recover) {
+    try {
+      var result = body();
+    } catch (e) {
+      return recover(e);
+    }
+
+    if (result && result.then) {
+      return result.then(void 0, recover);
+    }
+
+    return result;
+  }
+
+  function contextBuilder(_ref) {
+    let {
+      loadSession,
+      getToken: getToken$1 = getToken,
+      start = () => {}
+    } = _ref,
+        options = _objectWithoutPropertiesLoose(_ref, ["loadSession", "getToken", "start"]);
+
+    return function ({
+      req
+    } = {}) {
+      try {
+        const logger$1 = logger.child('contextBuilder');
+        return Promise.resolve(start()).then(function () {
+          function _temp3() {
+            return _extends({
+              session_id,
+              user_id,
+              user,
+              load_user_error,
+              getLoader
+            }, options);
+          }
+
+          options = processOptions(options);
+          const {
+            getCollection
+          } = options;
+
+          function getLoader(arg) {
+            const name = arg.name || arg;
+
+            if (!(name in loaders)) {
+              const collection = getCollection(name);
+              loaders[name] = collection.loader;
+            }
+
+            return loaders[name];
+          }
+
+          const loaders = {};
+          let session_id = null;
+          let user_id = null;
+          let user = null;
+          let load_user_error = null;
+          const token = getToken$1(req);
+
+          const _temp2 = function () {
+            if (token) {
+              const _temp = _catch(function () {
+                return Promise.resolve(loadSession({
+                  token,
+                  getCollection
+                })).then(function (_loadSession) {
+                  ({
+                    session_id,
+                    user_id,
+                    user
+                  } = _loadSession);
+                  logger$1.debug('Loaded session', {
+                    session_id,
+                    user
+                  });
+                });
+              }, function (error) {
+                logger$1.error('Error loading session', error);
+                load_user_error = error;
+              });
+
+              if (_temp && _temp.then) return _temp.then(function () {});
+            }
+          }();
+
+          return _temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2);
+        });
+      } catch (e) {
+        return Promise.reject(e);
+      }
+    };
+  }
+
+  function formatError(error) {
+    logger.error(error);
+    let data = GraphQL.formatError(error);
+    const {
+      originalError: oerror
+    } = error;
+
+    if (oerror && oerror.expected) {
+      data.code = oerror.code;
+    } else {
+      const public_error = new GraphQLError();
+      data = GraphQL.formatError(public_error);
+      data.code = public_error.code;
+    }
+
+    return data;
+  }
+
+  function exposeResolvers({
+    Controllers,
+    Scalars,
+    options
+  }) {
+    const resolvers = {};
+
+    for (const [name, Controller] of Object.entries(Controllers)) {
+      logger.debug(`Exposing controller ${name}`);
+      const controller = new Controller(options);
+      lodash.merge(resolvers, controller.expose());
+    }
+
+    lodash.merge(resolvers, Scalars);
+    return resolvers;
+  }
+
+  function makeSchema({
+    Schema,
+    Controllers,
+    Scalars,
+    options
+  }) {
+    const resolvers = exposeResolvers({
+      Controllers,
+      Scalars,
+      options
+    });
+    return graphqlTools.makeExecutableSchema({
+      typeDefs: Schema,
+      resolvers
+    });
+  }
+
+  function createGraphqlHandler({
+    Controllers,
+    Scalars,
+    Schema,
+    options = {}
+  }) {
+    const {
+      server: opts_server = {},
+      handler: opts_handler = {},
+      controller: opts_controller = {}
+    } = options;
+
+    if (!opts_server.formatError) {
+      opts_server.formatError = formatError;
+    }
+
+    const schema = makeSchema({
+      options: processOptions(opts_controller),
+      Schema,
+      Controllers,
+      Scalars
+    });
+    const server = new apolloServerCloudFunctions.ApolloServer(_extends({}, opts_server, {
+      schema
+    }));
+    return server.createHandler(opts_handler);
+  }
+
+  function _catch$1(body, recover) {
     try {
       var result = body();
     } catch (e) {
@@ -970,37 +1231,31 @@
   }
 
   const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
-  class Controller {
-    constructor(options = {}) {
+  class GraphQLController {
+    constructor(options) {
       this.exists = this._toCollection('exists');
       this.get = this._toCollection('get');
       this.list = this._toCollection('list');
       this.create = this._wrapToCollection('create');
       this.update = this._wrapToCollection('update');
-      this.options = options;
-      this.logger = logger.child('Controller');
+
+      if (options) {
+        initialize.call(this, _extends({
+          namespace: 'GraphQLController'
+        }, options));
+      }
     }
 
     get name() {
       throw new Error('Child class must implement .name');
     }
 
-    static resolvers() {
+    resolvers() {
       throw new Error('Child class must implement .resolvers');
     }
 
-    collection({
-      context,
-      name
-    }) {
-      return context.getCollection(name || this.name);
-    }
-
-    loader({
-      context,
-      name
-    }) {
-      return context.getLoader(name || this.name);
+    collection(name) {
+      return this.getCollection(name || this.name);
     }
 
     expose() {
@@ -1061,7 +1316,7 @@
                 user
               });
               rlogger.debug(`Calling resolver ${path}`);
-              return Promise.resolve(_catch(function () {
+              return Promise.resolve(_catch$1(function () {
                 const {
                   load_user_error
                 } = context;
@@ -1090,7 +1345,7 @@
                   rlogger.error('Expected GraphQL error', error);
                   throw error;
                 } else {
-                  rlogger.error('Unexpected GraphQL error', error);
+                  rlogger.error(error);
                   throw new GraphQLError();
                 }
               }));
@@ -1253,262 +1508,6 @@
 
   }
 
-  function getToken(request) {
-    const header = request.get('Authorization');
-    const prefix = /^Bearer /;
-
-    if (header && header.match(prefix)) {
-      return header.replace(prefix, '');
-    } else {
-      return null;
-    }
-  }
-
-  function _catch$1(body, recover) {
-    try {
-      var result = body();
-    } catch (e) {
-      return recover(e);
-    }
-
-    if (result && result.then) {
-      return result.then(void 0, recover);
-    }
-
-    return result;
-  }
-
-  function contextBuilder({
-    Collections,
-    loadSession,
-    options,
-    getToken: getToken$1 = getToken,
-    onLoad = () => {}
-  }) {
-    let loaded = false;
-    return function ({
-      req
-    }) {
-      try {
-        function _temp5() {
-          function _temp3() {
-            return _extends({
-              getCollection,
-              getLoader,
-              session_id,
-              user_id,
-              user,
-              load_user_error
-            }, options);
-          }
-
-          function getLoader(arg) {
-            const name = arg.name || arg;
-
-            if (!(name in loaders)) {
-              const collection = getCollection(name);
-              loaders[name] = collection.loader;
-            }
-
-            return loaders[name];
-          }
-
-          function getCollection(arg) {
-            const name = arg.name || arg;
-            const Collection = Collections[name];
-
-            if (!Collection) {
-              const msg = `Collection with name ${name} does not exist`;
-              logger$1.error(msg);
-              throw new Error(msg);
-            }
-
-            return Collection.get(_extends({
-              getCollection,
-              getLoader
-            }, options));
-          }
-
-          const loaders = {};
-          let session_id = null;
-          let user_id = null;
-          let user = null;
-          let load_user_error = null;
-          const token = getToken$1(req);
-
-          const _temp2 = function () {
-            if (token) {
-              const _temp = _catch$1(function () {
-                return Promise.resolve(loadSession({
-                  token,
-                  getCollection
-                })).then(function (_loadSession) {
-                  ({
-                    session_id,
-                    user_id,
-                    user
-                  } = _loadSession);
-                  logger$1.debug('Loaded session', {
-                    session_id,
-                    user
-                  });
-                });
-              }, function (error) {
-                logger$1.error('Error loading session', error);
-                load_user_error = error;
-              });
-
-              if (_temp && _temp.then) return _temp.then(function () {});
-            }
-          }();
-
-          return _temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2);
-        }
-
-        const logger$1 = logger.child({
-          name: 'contextBuilder',
-          req: {
-            url: req.url,
-            method: req.method,
-            protocol: req.protocol,
-            requestId: req.requestId,
-            ip: req.headers['x-forwarded-for'] || req.connection.remoteAddress,
-            headers: req.headers
-          }
-        });
-
-        const _temp4 = function () {
-          if (!loaded) {
-            logger$1.debug('calling onLoad');
-            return Promise.resolve(onLoad()).then(function () {
-              loaded = true;
-            });
-          }
-        }();
-
-        return Promise.resolve(_temp4 && _temp4.then ? _temp4.then(_temp5) : _temp5(_temp4));
-      } catch (e) {
-        return Promise.reject(e);
-      }
-    };
-  }
-
-  const directGraphqlRequest = function ({
-    Schema,
-    context,
-    query,
-    variables
-  }) {
-    try {
-      const rlogger = logger.child({
-        name: 'localGraphqlRequest',
-        query,
-        variables
-      });
-      rlogger.debug('Making request');
-      const root = {};
-      return Promise.resolve(GraphQL.graphql(Schema, query, root, context, variables)).then(function (response) {
-        const {
-          data,
-          errors
-        } = response;
-
-        if (errors) {
-          const error = errors[0];
-          rlogger.error(error);
-          throw error;
-        } else {
-          rlogger.debug('Got response', {
-            data
-          });
-          return data;
-        }
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  };
-
-  function expose({
-    Controllers,
-    Scalars,
-    options
-  }) {
-    const resolvers = {};
-
-    for (const [name, Controller] of Object.entries(Controllers)) {
-      logger.debug(`Exposing controller ${name}`);
-      const controller = new Controller(options);
-      lodash.merge(resolvers, controller.expose());
-    }
-
-    lodash.merge(resolvers, Scalars);
-    return resolvers;
-  }
-
-  function makeSchema({
-    Schema,
-    Controllers,
-    Scalars,
-    options
-  }) {
-    const resolvers = expose({
-      Controllers,
-      Scalars,
-      options
-    });
-    return graphqlTools.makeExecutableSchema({
-      typeDefs: Schema,
-      resolvers
-    });
-  }
-
-  function formatError(error) {
-    logger.error(error);
-    let data = GraphQL.formatError(error);
-    const {
-      originalError: oerror
-    } = error;
-
-    if (oerror && oerror.expected) {
-      data.code = oerror.code;
-    } else {
-      const public_error = new GraphQLError();
-      data = GraphQL.formatError(public_error);
-      data.code = public_error.code;
-    }
-
-    return data;
-  }
-
-  function graphqlHandler({
-    Controllers,
-    Scalars,
-    Schema,
-    options = {}
-  }) {
-    const {
-      server: opts_server = {},
-      handler: opts_handler = {},
-      controller: opts_controller = {}
-    } = options;
-
-    if (!opts_server.formatError) {
-      opts_server.formatError = formatError;
-    }
-
-    const schema = makeSchema({
-      options: opts_controller,
-      Schema,
-      Controllers,
-      Scalars
-    });
-    const server = new apolloServerCloudFunctions.ApolloServer(_extends({}, opts_server, {
-      schema
-    }));
-    return server.createHandler(opts_handler);
-  }
-
   function processDefinitions(definitions) {
     const enums = {};
     const groups = {
@@ -1614,7 +1613,7 @@
     Controllers,
     Scalars
   }) {
-    const resolvers = expose({
+    const resolvers = exposeResolvers({
       Controllers,
       Scalars
     });
@@ -1636,16 +1635,279 @@
     };
   }
 
+  function createHttpHandler({
+    Handler,
+    options
+  }) {
+    const app = Express();
+    const cors = Cors(options.cors);
+    app.use(cors);
+    options = processOptions(options.handler);
+    const handler = new Handler(options);
+    handler.expose(app);
+    return app;
+  }
+
+  class Handler {
+    constructor(_ref) {
+      let {
+        start
+      } = _ref,
+          options = _objectWithoutPropertiesLoose(_ref, ["start"]);
+
+      this.start = start;
+      initialize.call(this, _extends({
+        namespace: 'Handler'
+      }, options));
+    }
+
+    get name() {
+      throw new Error('Child class must implement .name');
+    }
+
+    actions() {
+      throw new Error('Handler should implement actions');
+    }
+
+    expose() {
+      throw new Error('Handler should implement expose');
+    }
+
+  }
+
+  function _catch$2(body, recover) {
+    try {
+      var result = body();
+    } catch (e) {
+      return recover(e);
+    }
+
+    if (result && result.then) {
+      return result.then(void 0, recover);
+    }
+
+    return result;
+  }
+
+  class HttpHandler extends Handler {
+    expose(app) {
+      let actions = this.actions();
+
+      if (!Array.isArray(actions)) {
+        actions = Object.entries(actions).map(([route, action]) => {
+          if (!route.includes(' ')) {
+            route = `GET ${route}`;
+          }
+
+          const [method, path] = route.split(/\s+/);
+          return {
+            method,
+            path,
+            action
+          };
+        });
+      }
+
+      for (const {
+        method,
+        path,
+        action
+      } of actions) {
+        const fn = method.toLowerCase();
+        app[fn](path, this.handle(action));
+      }
+
+      return app;
+    }
+
+    handle(action) {
+      const _this = this;
+
+      return function (request, response) {
+        try {
+          return Promise.resolve(_this.start()).then(function () {
+            const {
+              params
+            } = request;
+
+            const logger = _this.logger.child({
+              action,
+              params
+            });
+
+            return _catch$2(function () {
+              logger.info('Handler running');
+
+              const method = _this[action].bind(_this);
+
+              return Promise.resolve(method({
+                params,
+                request,
+                response
+              })).then(function (data) {
+                logger.info('Handler success', {
+                  data
+                });
+                return response.json(data);
+              });
+            }, function (error) {
+              logger.error('Handler failure', error);
+              return response.status(error.status || 500).json({
+                error: error.message
+              });
+            });
+          });
+        } catch (e) {
+          return Promise.reject(e);
+        }
+      };
+    }
+
+  }
+
+  function createPubSubHandler({
+    Handler,
+    options
+  }) {
+    options = processOptions(options.handler);
+    const handler = new Handler(options);
+    return handler.expose();
+  }
+
+  function _catch$3(body, recover) {
+    try {
+      var result = body();
+    } catch (e) {
+      return recover(e);
+    }
+
+    if (result && result.then) {
+      return result.then(void 0, recover);
+    }
+
+    return result;
+  }
+
+  class PubSubHandler extends Handler {
+    expose(topic) {
+      let actions = this.actions(topic);
+
+      if (!Array.isArray(actions)) {
+        actions = Object.entries(actions).map(([topic, action]) => {
+          return {
+            topic,
+            action
+          };
+        });
+      }
+
+      return actions.map(({
+        topic,
+        action
+      }) => {
+        const handler = this.handle(action);
+        return {
+          topic,
+          handler
+        };
+      }, {});
+    }
+
+    handle(action) {
+      const _this = this;
+
+      return function (message, context) {
+        try {
+          return Promise.resolve(_this.start()).then(function () {
+            const {
+              json,
+              data,
+              attributes
+            } = message;
+
+            const logger = _this.logger.child({
+              action,
+              message,
+              context
+            });
+
+            const _temp = _catch$3(function () {
+              logger.info('Handler running');
+
+              const method = _this[action].bind(_this);
+
+              return Promise.resolve(method({
+                json,
+                data,
+                attributes,
+                context
+              })).then(function (response) {
+                logger.info('Handler success', response);
+              });
+            }, function (error) {
+              logger.error('Handler failure', error);
+            });
+
+            if (_temp && _temp.then) return _temp.then(function () {});
+          });
+        } catch (e) {
+          return Promise.reject(e);
+        }
+      };
+    }
+
+  }
+
+  const directGraphqlRequest = function ({
+    Schema,
+    context,
+    query,
+    variables
+  }) {
+    try {
+      const rlogger = logger.child({
+        name: 'localGraphqlRequest',
+        query,
+        variables
+      });
+      rlogger.debug('Making request');
+      const root = {};
+      return Promise.resolve(GraphQL.graphql(Schema, query, root, context, variables)).then(function (response) {
+        const {
+          data,
+          errors
+        } = response;
+
+        if (errors) {
+          const error = errors[0];
+          rlogger.error(error);
+          throw error;
+        } else {
+          rlogger.debug('Got response', {
+            data
+          });
+          return data;
+        }
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  };
+
   exports.Authorizers = Authorizers;
   exports.Collection = Collection;
-  exports.Controller = Controller;
   exports.DoesNotExistError = DoesNotExistError;
   exports.FirestoreCollection = FirestoreCollection;
+  exports.GraphQLController = GraphQLController;
   exports.GraphQLError = GraphQLError;
+  exports.HttpHandler = HttpHandler;
   exports.NotAuthorizedError = NotAuthorizedError;
+  exports.PubSubHandler = PubSubHandler;
   exports.contextBuilder = contextBuilder;
+  exports.createGraphqlHandler = createGraphqlHandler;
+  exports.createHttpHandler = createHttpHandler;
+  exports.createPubSubHandler = createPubSubHandler;
   exports.directGraphqlRequest = directGraphqlRequest;
-  exports.graphqlHandler = graphqlHandler;
   exports.processSchema = processSchema;
 
 })));

@@ -2,7 +2,7 @@ import {omit, uniq, isNumber, isObject} from 'lodash';
 
 import Collection from './Collection';
 import timestampsToDates from './timestampsToDates';
-import {DoesNotExistError} from './Errors';
+import {DoesNotExistError} from '../Errors';
 
 export default class FirestoreCollection extends Collection {
   constructor (options) {
