@@ -12,7 +12,7 @@ export default class PubSubHandler extends Handler {
     return actions.map(({topic, action})=> {
       const handler = this.handle(action);
       return {topic, handler};
-    }, {});
+    });
   }
 
   handle (action) {

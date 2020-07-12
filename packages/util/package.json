@@ -1,0 +1,31 @@
+{
+  "name": "@hello10/jump-util",
+  "version": "1.0.0",
+  "description": "Jump Util",
+  "main": "dist/index.js",
+  "source": "src/index.js",
+  "license": "MIT",
+  "author": {
+    "name": "Stephen Handley",
+    "email": "stephen@hello10.com",
+    "url": "https://hello10.com"
+  },
+  "scripts": {
+    "build": "microbundle --target node",
+    "clean": "rm -rf node_modules && rm -rf dist && rm -f yarn.lock",
+    "dev": "microbundle watch --target node",
+    "lint": "eslint ./src",
+    "test": "echo 'no tests'"
+  },
+  "dependencies": {
+    "@hello10/util": "1.10.0",
+    "email-regex": "4.0.0",
+    "lodash": "4.17.19",
+    "phone-regex": "2.1.0",
+    "randomstring": "1.1.5",
+    "type-of-is": "3.5.1"
+  },
+  "devDependencies": {
+    "@hello10/eslint-config": "1.0.2"
+  }
+}

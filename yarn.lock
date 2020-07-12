@@ -1433,6 +1433,13 @@
     lodash.camelcase "^4.3.0"
     protobufjs "^6.8.6"
 
+"@hello10/color@1.1.1":
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/@hello10/color/-/color-1.1.1.tgz#d9b4c5d99fa5ac083cd32ec43cb8b6d1c74c86ff"
+  integrity sha512-CyiINVo+RM+R/ojfXQsRNDRucc4j7BrGR1ePmbPJnLjggbBGgRral5Dx0wq6B9aVcmPhA8c1tb5eRswX4XDfkA==
+  dependencies:
+    "@hello10/util" "1.5.0"
+
 "@hello10/eslint-config-react@1.0.2":
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/@hello10/eslint-config-react/-/eslint-config-react-1.0.2.tgz#3a7f98585bee3c014b265804b476cbb5d8f8f2ad"
@@ -1452,6 +1459,16 @@
   version "1.2.3"
   resolved "https://registry.yarnpkg.com/@hello10/react-hooks/-/react-hooks-1.2.3.tgz#1aa62ee7e3840d5785850f7ab0795c02d94f4226"
   integrity sha512-L/MLy04e6DHP6milc0P417DJQk4MrZX07KhsK7HpQREJkfTmNJkDxQFB5E4cenCrzjlwybljijxfuUuLMGB7Rw==
+
+"@hello10/util@1.10.0":
+  version "1.10.0"
+  resolved "https://registry.yarnpkg.com/@hello10/util/-/util-1.10.0.tgz#977887cc29d0eafbc8991a2073a99a54dbe7615e"
+  integrity sha512-qHY0Kwn1iHR+IVKFH2GNCx8UZbHV/Tp++eXztV3GL3t2Amq33cISfmtyoPD8SVqH7Y23jaLgyuGQA5SwS66OsA==
+
+"@hello10/util@1.5.0":
+  version "1.5.0"
+  resolved "https://registry.yarnpkg.com/@hello10/util/-/util-1.5.0.tgz#bc84b031ec6facc935d856fb5f08da4ecddce677"
+  integrity sha512-4V7RVim6OS+mPBerYUJhQIb+sC8AK8YBFRlyr0ozEyuGH9uV6mycPKQSIZtCOsRjpDZE4IJHTFhPz+B4uLhbTw==
 
 "@hello10/util@1.6.0":
   version "1.6.0"
@@ -3114,6 +3131,11 @@ array-union@^2.1.0:
   resolved "https://registry.yarnpkg.com/array-union/-/array-union-2.1.0.tgz#b798420adbeb1de828d84acd8a2e23d3efe85e8d"
   integrity sha512-HGyxoOTYUyCM6stUe6EJgnd4EoewAI7zMdfqO+kGjnlZmBDz/cR5pf8r/cR4Wq60sL/p0IkcjUEEPwS3GFrIyw==
 
+array-uniq@1.0.2:
+  version "1.0.2"
+  resolved "https://registry.yarnpkg.com/array-uniq/-/array-uniq-1.0.2.tgz#5fcc373920775723cfd64d65c64bef53bf9eba6d"
+  integrity sha1-X8w3OSB3VyPP1k1lxkvvU7+eum0=
+
 array-uniq@^1.0.1:
   version "1.0.3"
   resolved "https://registry.yarnpkg.com/array-uniq/-/array-uniq-1.0.3.tgz#af6ac877a25cc7f74e058894753858dfdb24fdb6"
@@ -4573,6 +4595,11 @@ electron-to-chromium@^1.3.488:
   version "1.3.496"
   resolved "https://registry.yarnpkg.com/electron-to-chromium/-/electron-to-chromium-1.3.496.tgz#3f43d32930481d82ad3663d79658e7c59a58af0b"
   integrity sha512-TXY4mwoyowwi4Lsrq9vcTUYBThyc1b2hXaTZI13p8/FRhY2CTaq5lK+DVjhYkKiTLsKt569Xes+0J5JsVXFurQ==
+
+email-regex@4.0.0:
+  version "4.0.0"
+  resolved "https://registry.yarnpkg.com/email-regex/-/email-regex-4.0.0.tgz#3a86bc66afaebb6de2f7eb1251133062c4c8c3d5"
+  integrity sha512-OxR2NqoYS3ZikqOkju2krRTyxngwjJ5Wh4yalpTqbBnUOr+LLwwjY2x5Sksruw6TieyQDswE5Pc83Eh6RQj3GA==
 
 emoji-regex@^7.0.1:
   version "7.0.3"
@@ -6790,7 +6817,7 @@ lodash@4.17.15:
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.15.tgz#b447f6670a0455bbfeedd11392eff330ea097548"
   integrity sha512-8xOcRHvCjnocdS5cpwXQXVzmmh5e5+saE2QGoeQmbKmRS6J3VQppPOIt0MnmE+4xlZoumy0GPG0D0MVIQbNA1A==
 
-lodash@^4.17.12, lodash@^4.17.13, lodash@^4.17.14, lodash@^4.17.15, lodash@^4.17.16, lodash@^4.2.1:
+lodash@4.17.19, lodash@^4.17.12, lodash@^4.17.13, lodash@^4.17.14, lodash@^4.17.15, lodash@^4.17.16, lodash@^4.2.1:
   version "4.17.19"
   resolved "https://registry.yarnpkg.com/lodash/-/lodash-4.17.19.tgz#e48ddedbe30b3321783c5b4301fbd353bc1e4a4b"
   integrity sha512-JNvd8XER9GQX0v2qJgsaN/mzFCNA5BRe/j8JN9d+tWyGLSodKQHKFicdwNYzWwI3wjRnaKPsGj1XkBjx/F96DQ==
@@ -7949,6 +7976,11 @@ performance-now@^2.1.0:
   resolved "https://registry.yarnpkg.com/performance-now/-/performance-now-2.1.0.tgz#6309f4e0e5fa913ec1c69307ae364b4b377c9e7b"
   integrity sha1-Ywn04OX6kT7BxpMHrjZLSzd8nns=
 
+phone-regex@2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/phone-regex/-/phone-regex-2.1.0.tgz#255f9f8518f0196094ce21ba1dfe732277d20c0d"
+  integrity sha512-9lXTghLpr/jU6Dx9JIacAUt3Hl7qVucW8+Iqwx99dvFSO9imlB2xvY6IyT6Sw554QTtHMnhvPUygGaN5k0pv9Q==
+
 picomatch@^2.0.5, picomatch@^2.2.1, picomatch@^2.2.2:
   version "2.2.2"
   resolved "https://registry.yarnpkg.com/picomatch/-/picomatch-2.2.2.tgz#21f333e9b6b8eaff02468f5146ea406d345f4dad"
@@ -8550,6 +8582,13 @@ quick-lru@^4.0.1:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/quick-lru/-/quick-lru-4.0.1.tgz#5b8878f113a58217848c6482026c73e1ba57727f"
   integrity sha512-ARhCpm70fzdcvNQfPoy49IaanKkTlRWF2JMzqhcJbhSFRZv7nPTvZJdcY7301IPmvW+/p0RgIWnQDLJxifsQ7g==
+
+randomstring@1.1.5:
+  version "1.1.5"
+  resolved "https://registry.yarnpkg.com/randomstring/-/randomstring-1.1.5.tgz#6df0628f75cbd5932930d9fe3ab4e956a18518c3"
+  integrity sha1-bfBij3XL1ZMpMNn+OrTpVqGFGMM=
+  dependencies:
+    array-uniq "1.0.2"
 
 range-parser@~1.2.1:
   version "1.2.1"

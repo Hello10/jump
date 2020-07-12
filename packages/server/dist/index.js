@@ -1812,7 +1812,7 @@ class PubSubHandler extends Handler {
         topic,
         handler
       };
-    }, {});
+    });
   }
 
   handle(action) {

@@ -1810,7 +1810,7 @@
           topic,
           handler
         };
-      }, {});
+      });
     }
 
     handle(action) {
