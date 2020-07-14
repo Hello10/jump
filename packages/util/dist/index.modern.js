@@ -1,7 +1,8 @@
 import { randomInt } from '@hello10/util';
 export * from '@hello10/util';
-import { mapKeys, camelCase, pickBy, identity, compact, times, isEqual, sortBy } from 'lodash';
 import Type from 'type-of-is';
+export { default as Type } from 'type-of-is';
+import { mapKeys, camelCase, pickBy, identity, compact, times, isEqual, sortBy } from 'lodash';
 import emailRegex from 'email-regex';
 import phoneRegex from 'phone-regex';
 

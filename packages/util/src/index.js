@@ -1,4 +1,5 @@
 export * from '@hello10/util';
+export {default as Type} from 'type-of-is';
 export {default as camelCaseKeys} from './camelCaseKeys';
 export {default as compact} from './compact';
 export {default as determineAddressType} from './determineAddressType';

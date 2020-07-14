@@ -1029,6 +1029,10 @@ function processOptions(input) {
 }
 
 function getToken(request) {
+  if (!request) {
+    return null;
+  }
+
   const header = request.get('Authorization');
   const prefix = /^Bearer /;
 

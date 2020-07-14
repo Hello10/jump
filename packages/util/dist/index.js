@@ -1,8 +1,8 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 var util = require('@hello10/util');
-var lodash = require('lodash');
 var Type = _interopDefault(require('type-of-is'));
+var lodash = require('lodash');
 var emailRegex = _interopDefault(require('email-regex'));
 var phoneRegex = _interopDefault(require('phone-regex'));
 
@@ -89,6 +89,7 @@ Object.keys(util).forEach(function (k) {
     }
   });
 });
+exports.Type = Type;
 exports.camelCaseKeys = camelCaseKeys;
 exports.compact = compact_;
 exports.determineAddressType = determineAddressType;

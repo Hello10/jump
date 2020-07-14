@@ -1,8 +1,8 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hello10/util'), require('lodash'), require('type-of-is'), require('email-regex'), require('phone-regex')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@hello10/util', 'lodash', 'type-of-is', 'email-regex', 'phone-regex'], factory) :
-  (global = global || self, factory(global.jumpUtil = {}, global.util, global.lodash, global.Type, global.emailRegex, global.phoneRegex));
-}(this, (function (exports, util, lodash, Type, emailRegex, phoneRegex) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hello10/util'), require('type-of-is'), require('lodash'), require('email-regex'), require('phone-regex')) :
+  typeof define === 'function' && define.amd ? define(['exports', '@hello10/util', 'type-of-is', 'lodash', 'email-regex', 'phone-regex'], factory) :
+  (global = global || self, factory(global.jumpUtil = {}, global.util, global.Type, global.lodash, global.emailRegex, global.phoneRegex));
+}(this, (function (exports, util, Type, lodash, emailRegex, phoneRegex) {
   Type = Type && Object.prototype.hasOwnProperty.call(Type, 'default') ? Type['default'] : Type;
   emailRegex = emailRegex && Object.prototype.hasOwnProperty.call(emailRegex, 'default') ? emailRegex['default'] : emailRegex;
   phoneRegex = phoneRegex && Object.prototype.hasOwnProperty.call(phoneRegex, 'default') ? phoneRegex['default'] : phoneRegex;
@@ -90,6 +90,7 @@
       }
     });
   });
+  exports.Type = Type;
   exports.camelCaseKeys = camelCaseKeys;
   exports.compact = compact_;
   exports.determineAddressType = determineAddressType;
