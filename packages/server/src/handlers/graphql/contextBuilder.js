@@ -6,15 +6,15 @@ export default function contextBuilder ({
   loadSession,
   getToken = getTokenDefault,
   start = ()=> {},
-  ...options
+  ...input_options
 }) {
-  return async ({req} = {})=> {
+  return async ({req: request} = {})=> {
     // TODO: support serializers in logger
     const logger = base_logger.child('contextBuilder');
 
     await start();
 
-    options = processOptions(options);
+    const options = processOptions(input_options);
     const {getCollection} = options;
 
     const loaders = {};
@@ -32,9 +32,11 @@ export default function contextBuilder ({
     let user = null;
     let load_user_error = null;
 
-    const token = getToken(req);
+    logger.debug('Getting token');
+    const token = getToken(request);
     if (token) {
       try {
+        logger.debug('Loading session');
         ({session_id, user_id, user} = await loadSession({token, getCollection}));
         logger.debug('Loaded session', {session_id, user});
       } catch (error) {

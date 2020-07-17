@@ -1,6 +1,7 @@
 import {makeExecutableSchema} from 'graphql-tools';
 import {ApolloServer} from 'apollo-server-cloud-functions';
 
+import base_logger from '../../logger';
 import processOptions from '../processOptions';
 import formatErrorDefault from './formatError';
 import exposeResolvers from './exposeResolvers';
@@ -19,6 +20,13 @@ export default function createGraphqlHandler ({
   Schema,
   options = {}
 }) {
+  const logger = base_logger.child({
+    name: 'createGraphqlHandler',
+    options
+  });
+
+  logger.debug('Creating GraphQL handler');
+
   const {
     server: opts_server = {},
     handler: opts_handler = {},
@@ -29,13 +37,18 @@ export default function createGraphqlHandler ({
     opts_server.formatError = formatErrorDefault;
   }
 
+  const processed_options = processOptions(opts_controller);
+  logger.debug('Making schema');
   const schema = makeSchema({
-    options: processOptions(opts_controller),
+    options: processed_options,
     Schema,
     Controllers,
     Scalars
   });
 
+  logger.debug('Creating server', {options: opts_server});
   const server = new ApolloServer({...opts_server, schema});
+
+  logger.debug('Creating handler', {options: opts_handler});
   return server.createHandler(opts_handler);
 }

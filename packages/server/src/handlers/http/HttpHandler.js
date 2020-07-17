@@ -29,7 +29,7 @@ export default class HttpHandler extends Handler {
       const logger = this.logger.child({action, params});
 
       try {
-        logger.info('Handler running');
+        logger.info('Calling handler');
         const method = this[action].bind(this);
         const data = await method({params, request, response});
         logger.info('Handler success', {data});

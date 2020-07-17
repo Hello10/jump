@@ -997,18 +997,22 @@
     options
   }) {
     return function getter(name) {
-      const Constructor = Constructors[name];
-
-      if (!Constructor) {
+      if (!(name in Constructors)) {
         const msg = `Constructor with name ${name} does not exist`;
         throw new Error(msg);
       }
 
+      const Constructor = Constructors[name];
       return Constructor.instance(options);
     };
   }
 
   function processOptions(input) {
+    logger.debug('Processing options', {
+      name: 'processOptions',
+      input
+    });
+
     const {
       Services,
       Collections
@@ -1061,10 +1065,10 @@
       getToken: getToken$1 = getToken,
       start = () => {}
     } = _ref,
-        options = _objectWithoutPropertiesLoose(_ref, ["loadSession", "getToken", "start"]);
+        input_options = _objectWithoutPropertiesLoose(_ref, ["loadSession", "getToken", "start"]);
 
     return function ({
-      req
+      req: request
     } = {}) {
       try {
         const logger$1 = logger.child('contextBuilder');
@@ -1079,7 +1083,7 @@
             }, options);
           }
 
-          options = processOptions(options);
+          const options = processOptions(input_options);
           const {
             getCollection
           } = options;
@@ -1100,11 +1104,13 @@
           let user_id = null;
           let user = null;
           let load_user_error = null;
-          const token = getToken$1(req);
+          logger$1.debug('Getting token');
+          const token = getToken$1(request);
 
           const _temp2 = function () {
             if (token) {
               const _temp = _catch(function () {
+                logger$1.debug('Loading session');
                 return Promise.resolve(loadSession({
                   token,
                   getCollection
@@ -1159,10 +1165,11 @@
     Scalars,
     options
   }) {
+    const logger$1 = logger.child('exposeResolvers');
     const resolvers = {};
 
     for (const [name, Controller] of Object.entries(Controllers)) {
-      logger.debug(`Exposing controller ${name}`);
+      logger$1.debug(`Exposing controller ${name}`);
       const controller = new Controller(options);
       lodash.merge(resolvers, controller.expose());
     }
@@ -1194,6 +1201,11 @@
     Schema,
     options = {}
   }) {
+    const logger$1 = logger.child({
+      name: 'createGraphqlHandler',
+      options
+    });
+    logger$1.debug('Creating GraphQL handler');
     const {
       server: opts_server = {},
       handler: opts_handler = {},
@@ -1204,15 +1216,23 @@
       opts_server.formatError = formatError;
     }
 
+    const processed_options = processOptions(opts_controller);
+    logger$1.debug('Making schema');
     const schema = makeSchema({
-      options: processOptions(opts_controller),
+      options: processed_options,
       Schema,
       Controllers,
       Scalars
     });
+    logger$1.debug('Creating server', {
+      options: opts_server
+    });
     const server = new apolloServerCloudFunctions.ApolloServer(_extends({}, opts_server, {
       schema
     }));
+    logger$1.debug('Creating handler', {
+      options: opts_handler
+    });
     return server.createHandler(opts_handler);
   }
 
@@ -1317,7 +1337,9 @@
               const rlogger = logger.child({
                 resolver: name,
                 type,
-                user
+                user,
+                obj,
+                args
               });
               rlogger.debug(`Calling resolver ${path}`);
               return Promise.resolve(_catch$1(function () {
@@ -1338,11 +1360,12 @@
                     throw error;
                   }
 
-                  rlogger.info('Calling resolver', {
-                    obj,
-                    args
+                  return Promise.resolve(resolver.call(_this, params)).then(function (result) {
+                    rlogger.info('Resolver result', {
+                      result
+                    });
+                    return result;
                   });
-                  return resolver.call(_this, params);
                 });
               }, function (error) {
                 if (error.expected) {
@@ -1647,6 +1670,11 @@
     const cors = Cors(options.cors);
     app.use(cors);
     options = processOptions(options.handler);
+    logger.debug('Creating HTTP Handler', {
+      name: 'createHttpHandler',
+      options,
+      Handler
+    });
     const handler = new Handler(options);
     handler.expose(app);
     return app;
@@ -1740,7 +1768,7 @@
             });
 
             return _catch$2(function () {
-              logger.info('Handler running');
+              logger.info('Calling handler');
 
               const method = _this[action].bind(_this);
 
@@ -1774,6 +1802,11 @@
     options
   }) {
     options = processOptions(options.handler);
+    logger.debug('Creating PubSub Handler', {
+      name: 'createPubSubHandler',
+      options,
+      Handler
+    });
     const handler = new Handler(options);
     return handler.expose();
   }
@@ -1830,22 +1863,21 @@
             } = message;
 
             const logger = _this.logger.child({
-              action,
-              message,
+              name: 'handle',
+              json,
+              attributes,
               context
             });
 
             const _temp = _catch$3(function () {
-              logger.info('Handler running');
-
-              const method = _this[action].bind(_this);
-
-              return Promise.resolve(method({
+              logger.info('Running handler');
+              const args = {
                 json,
                 data,
                 attributes,
                 context
-              })).then(function (response) {
+              };
+              return Promise.resolve(action.call(_this, args)).then(function (response) {
                 logger.info('Handler success', response);
               });
             }, function (error) {

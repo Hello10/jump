@@ -20,12 +20,17 @@ export default class PubSubHandler extends Handler {
       await this.start();
 
       const {json, data, attributes} = message;
-      const logger = this.logger.child({action, message, context});
+      const logger = this.logger.child({
+        name: 'handle',
+        json,
+        attributes,
+        context
+      });
 
       try {
-        logger.info('Handler running');
-        const method = this[action].bind(this);
-        const response = await method({json, data, attributes, context});
+        logger.info('Running handler');
+        const args = {json, data, attributes, context};
+        const response = await action.call(this, args);
         logger.info('Handler success', response);
       } catch (error) {
         logger.error('Handler failure', error);

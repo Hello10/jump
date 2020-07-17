@@ -795,18 +795,21 @@ function instanceGetter({
   options
 }) {
   return function getter(name) {
-    const Constructor = Constructors[name];
-
-    if (!Constructor) {
+    if (!(name in Constructors)) {
       const msg = `Constructor with name ${name} does not exist`;
       throw new Error(msg);
     }
 
+    const Constructor = Constructors[name];
     return Constructor.instance(options);
   };
 }
 
 function processOptions(input) {
+  logger.debug('Processing options', {
+    name: 'processOptions',
+    input
+  });
   const {
     Services,
     Collections,
@@ -842,14 +845,14 @@ function contextBuilder({
   loadSession,
   getToken: getToken$1 = getToken,
   start = () => {},
-  ...options
+  ...input_options
 }) {
   return async ({
-    req
+    req: request
   } = {}) => {
     const logger$1 = logger.child('contextBuilder');
     await start();
-    options = processOptions(options);
+    const options = processOptions(input_options);
     const {
       getCollection
     } = options;
@@ -870,10 +873,12 @@ function contextBuilder({
     let user_id = null;
     let user = null;
     let load_user_error = null;
-    const token = getToken$1(req);
+    logger$1.debug('Getting token');
+    const token = getToken$1(request);
 
     if (token) {
       try {
+        logger$1.debug('Loading session');
         ({
           session_id,
           user_id,
@@ -926,10 +931,11 @@ function exposeResolvers({
   Scalars,
   options
 }) {
+  const logger$1 = logger.child('exposeResolvers');
   const resolvers = {};
 
   for (const [name, Controller] of Object.entries(Controllers)) {
-    logger.debug(`Exposing controller ${name}`);
+    logger$1.debug(`Exposing controller ${name}`);
     const controller = new Controller(options);
     merge(resolvers, controller.expose());
   }
@@ -961,6 +967,11 @@ function createGraphqlHandler({
   Schema,
   options = {}
 }) {
+  const logger$1 = logger.child({
+    name: 'createGraphqlHandler',
+    options
+  });
+  logger$1.debug('Creating GraphQL handler');
   const {
     server: opts_server = {},
     handler: opts_handler = {},
@@ -971,14 +982,22 @@ function createGraphqlHandler({
     opts_server.formatError = formatError;
   }
 
+  const processed_options = processOptions(opts_controller);
+  logger$1.debug('Making schema');
   const schema = makeSchema({
-    options: processOptions(opts_controller),
+    options: processed_options,
     Schema,
     Controllers,
     Scalars
   });
+  logger$1.debug('Creating server', {
+    options: opts_server
+  });
   const server = new ApolloServer({ ...opts_server,
     schema
+  });
+  logger$1.debug('Creating handler', {
+    options: opts_handler
   });
   return server.createHandler(opts_handler);
 }
@@ -1070,7 +1089,9 @@ class GraphQLController {
           const rlogger = logger.child({
             resolver: name,
             type,
-            user
+            user,
+            obj,
+            args
           });
           rlogger.debug(`Calling resolver ${path}`);
 
@@ -1093,11 +1114,11 @@ class GraphQLController {
               throw error;
             }
 
-            rlogger.info('Calling resolver', {
-              obj,
-              args
+            const result = await resolver.call(_this, params);
+            rlogger.info('Resolver result', {
+              result
             });
-            return resolver.call(_this, params);
+            return result;
           } catch (error) {
             if (error.expected) {
               rlogger.error('Expected GraphQL error', error);
@@ -1359,6 +1380,11 @@ function createHttpHandler({
   const cors = Cors(options.cors);
   app.use(cors);
   options = processOptions(options.handler);
+  logger.debug('Creating HTTP Handler', {
+    name: 'createHttpHandler',
+    options,
+    Handler
+  });
   const handler = new Handler(options);
   handler.expose(app);
   return app;
@@ -1436,7 +1462,7 @@ class HttpHandler extends Handler {
       });
 
       try {
-        logger.info('Handler running');
+        logger.info('Calling handler');
 
         const method = _this[action].bind(_this);
 
@@ -1465,6 +1491,11 @@ function createPubSubHandler({
   options
 }) {
   options = processOptions(options.handler);
+  logger.debug('Creating PubSub Handler', {
+    name: 'createPubSubHandler',
+    options,
+    Handler
+  });
   const handler = new Handler(options);
   return handler.expose();
 }
@@ -1506,22 +1537,21 @@ class PubSubHandler extends Handler {
       } = message;
 
       const logger = _this.logger.child({
-        action,
-        message,
+        name: 'handle',
+        json,
+        attributes,
         context
       });
 
       try {
-        logger.info('Handler running');
-
-        const method = _this[action].bind(_this);
-
-        const response = await method({
+        logger.info('Running handler');
+        const args = {
           json,
           data,
           attributes,
           context
-        });
+        };
+        const response = await action.call(_this, args);
         logger.info('Handler success', response);
       } catch (error) {
         logger.error('Handler failure', error);

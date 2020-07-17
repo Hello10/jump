@@ -108,7 +108,9 @@ export default class GraphQLController {
           const rlogger = logger.child({
             resolver: name,
             type,
-            user
+            user,
+            obj,
+            args
           });
 
           rlogger.debug(`Calling resolver ${path}`);
@@ -128,8 +130,9 @@ export default class GraphQLController {
               throw error;
             }
 
-            rlogger.info('Calling resolver', {obj, args});
-            return resolver.call(this, params);
+            const result = await resolver.call(this, params);
+            rlogger.info('Resolver result', {result});
+            return result;
           } catch (error) {
             if (error.expected) {
               rlogger.error('Expected GraphQL error', error);
