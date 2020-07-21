@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-server",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Jump Server",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -25,7 +25,7 @@
     "dataloader": "2.0.0",
     "debug": "4.2.0",
     "express": "4.17.1",
-    "lodash": "4.17.15"
+    "lodash": "4.17.19"
   },
   "devDependencies": {
     "@hello10/eslint-config": "1.0.2",
