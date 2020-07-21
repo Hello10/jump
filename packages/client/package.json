@@ -26,7 +26,7 @@
     "babel-polyfill": "6.26.0",
     "debug": "4.2.0",
     "graphql-tag": "2.10.3",
-    "groutcho": "3.0.0",
+    "groutcho": "3.1.1",
     "lodash.get": "4.4.2",
     "prop-types": "15.7.2"
   },

@@ -1,15 +1,79 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
+var apolloServerCloudFunctions = require('apollo-server-cloud-functions');
 var DataLoader = _interopDefault(require('dataloader'));
 var lodash = require('lodash');
 var Promise$1 = _interopDefault(require('bluebird'));
 var util = require('@hello10/util');
 var Logger = _interopDefault(require('@hello10/logger'));
-var apolloServerCloudFunctions = require('apollo-server-cloud-functions');
 var graphqlTools = require('graphql-tools');
 var GraphQL = require('graphql');
 var Express = _interopDefault(require('express'));
 var Cors = _interopDefault(require('cors'));
+
+class GraphQLError extends apolloServerCloudFunctions.ApolloError {
+  constructor({
+    code = 'GraphQLError',
+    message = 'GraphQL error',
+    params
+  } = {}) {
+    if (message.constructor === Function) {
+      message = message(params);
+    }
+
+    super(message, code, params);
+    this.expected = true;
+  }
+
+  is(code) {
+    return this.code === code;
+  }
+
+}
+class DoesNotExistError extends GraphQLError {
+  constructor(params) {
+    super({
+      code: 'DoesNotExist',
+      message: ({
+        type,
+        id,
+        ids,
+        query
+      }) => {
+        let missing = '';
+
+        if (id) {
+          missing = ` for id = ${id}`;
+        } else if (ids) {
+          missing = ` for ids = [${ids.join(',')}]`;
+        } else if (query) {
+          missing = ` for query = ${query}`;
+        }
+
+        return `Could not find ${type}${missing}`;
+      },
+      params
+    });
+  }
+
+}
+class NotAuthorizedError extends GraphQLError {
+  constructor(params) {
+    super({
+      code: 'NotAuthorized',
+      message: `Not authorized to access ${params.path}`,
+      params
+    });
+  }
+
+}
+
+var Errors = {
+  __proto__: null,
+  GraphQLError: GraphQLError,
+  DoesNotExistError: DoesNotExistError,
+  NotAuthorizedError: NotAuthorizedError
+};
 
 function _extends() {
   _extends = Object.assign || function (target) {
@@ -477,63 +541,6 @@ function timestampsToDates(obj) {
     default:
       return obj;
   }
-}
-
-class GraphQLError extends apolloServerCloudFunctions.ApolloError {
-  constructor({
-    code = 'GraphQLError',
-    message = 'GraphQL error',
-    params
-  } = {}) {
-    if (message.constructor === Function) {
-      message = message(params);
-    }
-
-    super(message, code, params);
-    this.expected = true;
-  }
-
-  is(code) {
-    return this.code === code;
-  }
-
-}
-class DoesNotExistError extends GraphQLError {
-  constructor(params) {
-    super({
-      code: 'DoesNotExist',
-      message: ({
-        type,
-        id,
-        ids,
-        query
-      }) => {
-        let missing = '';
-
-        if (id) {
-          missing = ` for id = ${id}`;
-        } else if (ids) {
-          missing = ` for ids = [${ids.join(',')}]`;
-        } else if (query) {
-          missing = ` for query = ${query}`;
-        }
-
-        return `Could not find ${type}${missing}`;
-      },
-      params
-    });
-  }
-
-}
-class NotAuthorizedError extends GraphQLError {
-  constructor(params) {
-    super({
-      code: 'NotAuthorized',
-      message: `Not authorized to access ${params.path}`,
-      params
-    });
-  }
-
 }
 
 class FirestoreCollection extends Collection {
@@ -1935,6 +1942,7 @@ const directGraphqlRequest = function ({
 exports.Authorizers = Authorizers;
 exports.Collection = Collection;
 exports.DoesNotExistError = DoesNotExistError;
+exports.Errors = Errors;
 exports.FirestoreCollection = FirestoreCollection;
 exports.GraphQLController = GraphQLController;
 exports.GraphQLError = GraphQLError;

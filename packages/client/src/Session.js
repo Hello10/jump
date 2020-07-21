@@ -1,186 +1,142 @@
-import * as React from 'react';
-import {
-  createContext,
-  useContext,
-  useState,
-  useEffect
-} from 'react';
-import PropTypes from 'prop-types';
-import Firebase from 'firebase/app';
-import 'firebase/auth';
+import {useSingleton} from '@hello10/react-hooks';
 
-import getGraphQLErrorCode from './getGraphQLErrorCode';
-import debug from './debug';
+import logger from './logger';
 
-const SessionContext = createContext();
-
-function SessionProvider ({client, children, SessionUser, Loading, popup = true}) {
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState(null);
-  const [user, _setUser] = useState(new SessionUser(null));
-
-  function setUser (data) {
-    debug('Setting session user', data);
-    const user = new SessionUser(data);
-    _setUser(user);
-  }
-
-  useEffect(()=> {
-    const auth = Firebase.auth();
-    const unsubscribe = auth.onAuthStateChanged(async (firebase_user)=> {
-      debug('Firebase auth state changed', firebase_user);
-      try {
-        if (firebase_user) {
-          debug('Getting firebase user token');
-          const token = await firebase_user.getIdToken(true);
-          client.setToken(token);
-
-          debug('Loading session user');
-          const user = await SessionUser.load({client, token, firebase_user});
-          setUser(user);
-        } else {
-          client.clearToken();
-          setUser(null);
-        }
-      } catch (error) {
-        debug('Session error', error);
-        const code = getGraphQLErrorCode(error);
-        if (code) {
-          setError(code);
-        } else {
-          setError('Session error');
-        }
-      } finally {
-        debug('Session loaded');
-        setLoaded(true);
+export default class Session extends useSingleton.Singleton {
+  initialize () {
+    const {
+      SessionUser,
+      client,
+      shouldEndSessionOnError = ()=> {
+        return true;
       }
+    } = this.options;
+
+    SessionUser.client = client;
+    const user = new SessionUser();
+
+    this.SessionUser = SessionUser;
+    this.client = client;
+    this.shouldEndSessionOnError = shouldEndSessionOnError;
+
+    this.logger = logger.child({
+      name: 'Session',
+      user
     });
 
-    return ()=> {
-      debug('Unsubscribing from firebase auth state listener');
-      unsubscribe();
+    return {
+      user,
+      changing: false,
+      loaded: false,
+      error: null
     };
-  }, []);
+  }
 
-  async function start ({email, password, provider: provider_name}) {
-    debug('Starting session', email, provider_name);
-    const auth = Firebase.auth();
-    const provider_method = popup ? 'signInWithPopup' : 'signInWithRedirect';
-    const dedicated_providers = ['Google', 'Facebook', 'Twitter', 'Github'];
-    const oauth_providers = ['Yahoo', 'Microsoft', 'Apple'];
+  get user () {
+    return this.state.user;
+  }
 
-    function invalidMode () {
-      throw new Error(`Invalid auth mode: ${provider_name}`);
+  get changing () {
+    return this.state.changing;
+  }
+
+  get loaded () {
+    return this.state.loaded;
+  }
+
+  get error () {
+    return this.state.error;
+  }
+
+  get load_error () {
+    return this.loaded ? null : this.error;
+  }
+
+  async load () {
+    this.logger.debug('Loading session');
+    return this._change(async ()=> {
+      await this.client.loadAuth();
+      const user = await this.SessionUser.load();
+      this.logger.debug('Session loaded', {user});
+      return {
+        user,
+        loaded: true
+      };
+    });
+  }
+
+  unload () {}
+
+  start (args) {
+    this.logger.debug('Starting session');
+    return this._change(async ()=> {
+      const {user, auth} = await this.SessionUser.start(args);
+      this.logger.debug('Session started, setting auth', {user});
+      await this.client.setAuth(auth);
+      return {user};
+    });
+  }
+
+  refresh () {
+    const {SessionUser} = this;
+    if (SessionUser.refresh) {
+      this.logger.debug('No refresh method defined on SessionUser');
+      return null;
+    }
+
+    this.logger.debug('Refreshing session');
+    return this._change(async ()=> {
+      const {client} = this;
+      const client_auth = await client.getAuth();
+      const data = await SessionUser.refresh(client_auth);
+      const {user, auth} = data;
+      this.logger.debug('Session refreshed, setting auth', {user});
+      await client.setAuth(auth);
+      return {user};
+    });
+  }
+
+  end (args) {
+    const {SessionUser} = this;
+    this.logger.debug('Ending session');
+    return this._change(async ()=> {
+      try {
+        await SessionUser.end(args);
+        this.logger.debug('Session ended');
+      } catch (error) {
+        this.logger.error('Error ending sesssion', error);
+      }
+      await this.client.clearAuth();
+      const user = new SessionUser();
+      return {user};
+    });
+  }
+
+  async _change (action) {
+    if (!this.changing) {
+      this.setState({changing: true});
     }
 
     try {
-      let result;
-      if (provider_name.includes('Email')) {
-        let action;
-        if (provider_name === 'EmailSignin') {
-          action = 'signInWithEmailAndPassword';
-        } else if (provider_name === 'EmailSignup') {
-          action = 'createUserWithEmailAndPassword';
-        } else {
-          invalidMode();
-        }
-
-        debug('Authorizing via email', {action, email});
-        result = await auth[action](email, password)
-          .then((ok)=> {
-            console.log('honk', ok);
-            return ok;
-          })
-          .catch((error)=> {
-            console.error('dat error', error);
-            throw error;
-          });
-
-        if (action === 'createUserWithEmailAndPassword') {
-          debug('Sending session email verification');
-          result = await auth.currentUser.sendEmailVerification();
-        }
-      } else if (dedicated_providers.includes(provider_name)) {
-        const Provider = Firebase.auth[`${provider_name}AuthProvider`];
-        const provider = new Provider();
-        debug('Authorizing via dedicated provider', {provider_name, provider_method});
-        result = await auth[provider_method](provider);
-      } else if (oauth_providers.includes(provider_name)) {
-        const domain = `${provider_name.toLowerCase()}.com`;
-        const provider = new Firebase.auth.OAuthProvider(domain);
-        debug('Authorizing via OAuth provider', {domain, provider_method});
-        result = await auth[provider_method](provider);
-      } else {
-        invalidMode();
-      }
-      return result;
+      const state = await action();
+      this.setState({
+        changing: false,
+        error: null,
+        ...state
+      });
     } catch (error) {
-      debug('Error authenticating', error);
-      throw error;
+      this.logger.error('Session error', {error});
+      let {user} = this;
+      if (this.shouldEndSessionOnError(error)) {
+        this.logger.debug('Clearing session on error');
+        await this.client.clearAuth();
+        user = null;
+      }
+      this.setState({
+        changing: false,
+        user,
+        error
+      });
     }
   }
-
-  function end () {
-    debug('Signing out');
-    return Firebase.auth().signOut();
-  }
-
-  function reload () {
-    // TODO: implement reload
-  }
-
-  let $body;
-  if (loaded) {
-    $body = children({user});
-  } else {
-    $body = (
-      <Loading
-        user={user}
-        error={error}
-        reload={reload}
-      />
-    );
-  }
-
-  return (
-    <SessionContext.Provider
-      value={{
-        loaded,
-        error,
-        user,
-        start,
-        reload,
-        end
-      }}
-    >
-      {$body}
-    </SessionContext.Provider>
-  );
 }
-
-SessionProvider.propTypes = {
-  children: PropTypes.func,
-  client: PropTypes.object,
-  SessionUser: PropTypes.func,
-  Loading: PropTypes.func,
-  popup: PropTypes.bool
-};
-
-const {Consumer: SessionConsumer} = SessionContext;
-
-function useSession () {
-  return useContext(SessionContext);
-}
-
-function useSessionUser () {
-  const session = useSession();
-  return session.user;
-}
-
-export {
-  SessionContext,
-  SessionConsumer,
-  SessionProvider,
-  useSession,
-  useSessionUser
-};

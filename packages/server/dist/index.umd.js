@@ -1,13 +1,77 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('dataloader'), require('lodash'), require('bluebird'), require('@hello10/util'), require('@hello10/logger'), require('apollo-server-cloud-functions'), require('graphql-tools'), require('graphql'), require('express'), require('cors')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'dataloader', 'lodash', 'bluebird', '@hello10/util', '@hello10/logger', 'apollo-server-cloud-functions', 'graphql-tools', 'graphql', 'express', 'cors'], factory) :
-  (global = global || self, factory(global.jumpServer = {}, global.dataloader, global.lodash, global.bluebird, global.util, global.Logger, global.apolloServerCloudFunctions, global.graphqlTools, global.graphql, global.express, global.cors));
-}(this, (function (exports, DataLoader, lodash, Promise$1, util, Logger, apolloServerCloudFunctions, graphqlTools, GraphQL, Express, Cors) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('apollo-server-cloud-functions'), require('dataloader'), require('lodash'), require('bluebird'), require('@hello10/util'), require('@hello10/logger'), require('graphql-tools'), require('graphql'), require('express'), require('cors')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'apollo-server-cloud-functions', 'dataloader', 'lodash', 'bluebird', '@hello10/util', '@hello10/logger', 'graphql-tools', 'graphql', 'express', 'cors'], factory) :
+  (global = global || self, factory(global.jumpServer = {}, global.apolloServerCloudFunctions, global.dataloader, global.lodash, global.bluebird, global.util, global.Logger, global.graphqlTools, global.graphql, global.express, global.cors));
+}(this, (function (exports, apolloServerCloudFunctions, DataLoader, lodash, Promise$1, util, Logger, graphqlTools, GraphQL, Express, Cors) {
   DataLoader = DataLoader && Object.prototype.hasOwnProperty.call(DataLoader, 'default') ? DataLoader['default'] : DataLoader;
   Promise$1 = Promise$1 && Object.prototype.hasOwnProperty.call(Promise$1, 'default') ? Promise$1['default'] : Promise$1;
   Logger = Logger && Object.prototype.hasOwnProperty.call(Logger, 'default') ? Logger['default'] : Logger;
   Express = Express && Object.prototype.hasOwnProperty.call(Express, 'default') ? Express['default'] : Express;
   Cors = Cors && Object.prototype.hasOwnProperty.call(Cors, 'default') ? Cors['default'] : Cors;
+
+  class GraphQLError extends apolloServerCloudFunctions.ApolloError {
+    constructor({
+      code = 'GraphQLError',
+      message = 'GraphQL error',
+      params
+    } = {}) {
+      if (message.constructor === Function) {
+        message = message(params);
+      }
+
+      super(message, code, params);
+      this.expected = true;
+    }
+
+    is(code) {
+      return this.code === code;
+    }
+
+  }
+  class DoesNotExistError extends GraphQLError {
+    constructor(params) {
+      super({
+        code: 'DoesNotExist',
+        message: ({
+          type,
+          id,
+          ids,
+          query
+        }) => {
+          let missing = '';
+
+          if (id) {
+            missing = ` for id = ${id}`;
+          } else if (ids) {
+            missing = ` for ids = [${ids.join(',')}]`;
+          } else if (query) {
+            missing = ` for query = ${query}`;
+          }
+
+          return `Could not find ${type}${missing}`;
+        },
+        params
+      });
+    }
+
+  }
+  class NotAuthorizedError extends GraphQLError {
+    constructor(params) {
+      super({
+        code: 'NotAuthorized',
+        message: `Not authorized to access ${params.path}`,
+        params
+      });
+    }
+
+  }
+
+  var Errors = {
+    __proto__: null,
+    GraphQLError: GraphQLError,
+    DoesNotExistError: DoesNotExistError,
+    NotAuthorizedError: NotAuthorizedError
+  };
 
   function _extends() {
     _extends = Object.assign || function (target) {
@@ -475,63 +539,6 @@
       default:
         return obj;
     }
-  }
-
-  class GraphQLError extends apolloServerCloudFunctions.ApolloError {
-    constructor({
-      code = 'GraphQLError',
-      message = 'GraphQL error',
-      params
-    } = {}) {
-      if (message.constructor === Function) {
-        message = message(params);
-      }
-
-      super(message, code, params);
-      this.expected = true;
-    }
-
-    is(code) {
-      return this.code === code;
-    }
-
-  }
-  class DoesNotExistError extends GraphQLError {
-    constructor(params) {
-      super({
-        code: 'DoesNotExist',
-        message: ({
-          type,
-          id,
-          ids,
-          query
-        }) => {
-          let missing = '';
-
-          if (id) {
-            missing = ` for id = ${id}`;
-          } else if (ids) {
-            missing = ` for ids = [${ids.join(',')}]`;
-          } else if (query) {
-            missing = ` for query = ${query}`;
-          }
-
-          return `Could not find ${type}${missing}`;
-        },
-        params
-      });
-    }
-
-  }
-  class NotAuthorizedError extends GraphQLError {
-    constructor(params) {
-      super({
-        code: 'NotAuthorized',
-        message: `Not authorized to access ${params.path}`,
-        params
-      });
-    }
-
   }
 
   class FirestoreCollection extends Collection {
@@ -1933,6 +1940,7 @@
   exports.Authorizers = Authorizers;
   exports.Collection = Collection;
   exports.DoesNotExistError = DoesNotExistError;
+  exports.Errors = Errors;
   exports.FirestoreCollection = FirestoreCollection;
   exports.GraphQLController = GraphQLController;
   exports.GraphQLError = GraphQLError;

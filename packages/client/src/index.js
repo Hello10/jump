@@ -1,10 +1,11 @@
 import 'babel-polyfill';
 
-export * from './Session';
+export {default as ApplicationContainer} from './ApplicationContainer';
+export {default as FirebaseSession} from './FirebaseSession';
 export {default as getClient} from './getClient';
 export {default as getGraphQLErrorCode} from './getGraphQLErrorCode';
 export {default as getSubdomain} from './getSubdomain';
-export {default as firebaseConfig} from './firebaseConfig';
 export {default as PageContainer} from './PageContainer';
 export {default as subdomainApps} from './subdomainApps';
-export {default as useRouter} from './useRouter';
+export {default as Router} from './Router';
+export {default as Session} from './Session';

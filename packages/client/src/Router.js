@@ -1,7 +1,9 @@
 import {useSingleton} from '@hello10/react-hooks';
-import {Router} from 'groutcho';
+import Groutcho from 'groutcho';
 
-class SingletonRouter extends useSingleton.Singleton {
+import logger from './logger';
+
+export default class Router extends useSingleton.Singleton {
   initialize () {
     this.history = [];
 
@@ -12,7 +14,7 @@ class SingletonRouter extends useSingleton.Singleton {
     }
 
     const {routes, redirects} = this.options;
-    this.router = new Router({routes, redirects});
+    this.router = new Groutcho.Router({routes, redirects});
     this.router.onGo(this._onGo.bind(this));
 
     let url = '/';
@@ -23,6 +25,13 @@ class SingletonRouter extends useSingleton.Singleton {
       window.addEventListener('popstate', this._onPopState.bind(this));
     }
 
+    this.logger = logger.child({
+      name: 'Router',
+      web: this.web
+    });
+
+    this.logger.debug('Initializing router');
+
     return {url};
   }
 
@@ -31,6 +40,7 @@ class SingletonRouter extends useSingleton.Singleton {
   }
 
   match (input) {
+    this.input = input;
     const match = this.router.match({
       ...input,
       url: this.url
@@ -39,10 +49,16 @@ class SingletonRouter extends useSingleton.Singleton {
     if (redirect) {
       this._setUrl(url);
     }
+    this.logger.debug('Router got match', {match, input});
     return match;
   }
 
   go (args) {
+    args = {
+      ...this.input,
+      ...this.router._normalizeInput(args)
+    };
+    this.logger.debug('Router go called', {args, url: this.url});
     this.router.go(args);
   }
 
@@ -55,20 +71,25 @@ class SingletonRouter extends useSingleton.Singleton {
   }
 
   _setUrl (url) {
-    const state = {url};
-    this.setState(state);
-    this.history.push(state);
-    if (this.web) {
-      window.history.pushState(state, '', url);
+    this.logger.debug('Setting router url', url);
+    if (url !== this.url) {
+      const state = {url};
+      this.setState(state);
+      this.history.push(state);
+      if (this.web) {
+        window.history.pushState(state, '', url);
+      }
     }
   }
 
-  _onGo (new_url) {
-    if (new_url !== this.url) {
-      this._setUrl(new_url);
+  _onGo (match) {
+    this.logger.debug('Router onGo called', {match, current: this.url});
+    const {url} = match;
+    if (url !== this.url) {
+      this._setUrl(url);
       const {onGo} = this.options;
       if (onGo) {
-        onGo(new_url);
+        onGo(match);
       }
     }
   }
@@ -76,8 +97,4 @@ class SingletonRouter extends useSingleton.Singleton {
   _onPopState ({state}) {
     this.setState(state);
   }
-}
-
-export default function useRouter (options = {}) {
-  return useSingleton(SingletonRouter, options);
 }
