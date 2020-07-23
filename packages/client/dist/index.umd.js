@@ -348,9 +348,22 @@
       name
     } = route;
     const logger$1 = logger.child('PageContainer');
+    const [last_match, setLastMatch] = React.useState(match);
     const [loading, setLoading] = React.useState(true);
     const [error, setError] = React.useState(null);
     const [data, setData] = React.useState(null);
+
+    if (match !== last_match) {
+      logger$1.debug('Resetting for new page', {
+        last_match,
+        match
+      });
+      setLoading(true);
+      setError(null);
+      setData(null);
+      setLastMatch(match);
+    }
+
     logger$1.debug('Rendering page container', {
       match,
       loading,
@@ -361,7 +374,7 @@
       const runQuery = function () {
         try {
           if (unmounted) {
-            logger$1.debug('Skipping unmounted query');
+            logger$1.debug('Skip unmounted query');
             return Promise.resolve();
           }
 
@@ -402,9 +415,6 @@
 
       return () => {
         logger$1.debug('Unmounting page container');
-        setLoading(true);
-        setError(null);
-        setData(null);
         unmounted = true;
       };
     }, [match]);

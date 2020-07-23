@@ -18,9 +18,19 @@ export default function PageContainer ({
 
   const logger = base_logger.child('PageContainer');
 
+  const [last_match, setLastMatch] = useState(match);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [data, setData] = useState(null);
+
+  // Check whether the page changed
+  if (match !== last_match) {
+    logger.debug('Resetting for new page', {last_match, match});
+    setLoading(true);
+    setError(null);
+    setData(null);
+    setLastMatch(match);
+  }
 
   logger.debug('Rendering page container', {match, loading, error, data});
 
@@ -28,7 +38,7 @@ export default function PageContainer ({
     let unmounted = false;
     async function runQuery () {
       if (unmounted) {
-        logger.debug('Skipping unmounted query');
+        logger.debug('Skip unmounted query');
         return;
       }
 
@@ -55,10 +65,6 @@ export default function PageContainer ({
 
     return ()=> {
       logger.debug('Unmounting page container');
-      // TODO: why are these neccessary if the page is unmounted
-      setLoading(true);
-      setError(null);
-      setData(null);
       unmounted = true;
     };
   }, [match]);

@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-client",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "description": "Jump Client",
   "main": "dist/index.js",
   "source": "src/index.js",
