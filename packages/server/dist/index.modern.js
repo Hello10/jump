@@ -1192,7 +1192,7 @@ class GraphQLController {
     const {
       id
     } = request.args;
-    const collection = this.collection(request);
+    const collection = this.collection();
     const deleted = await collection.delete({
       id
     });
@@ -1213,7 +1213,7 @@ class GraphQLController {
 
   _toCollection(method) {
     return request => {
-      const collection = this.collection(request);
+      const collection = this.collection();
       return collection[method](request.args);
     };
   }
@@ -1225,7 +1225,7 @@ class GraphQLController {
     const before = `before${cmethod}`;
     const after = `after${cmethod}`;
     return async function (request) {
-      const collection = _this2.collection(request);
+      const collection = _this2.collection();
 
       let {
         data

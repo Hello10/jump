@@ -1444,7 +1444,7 @@
             id
           } = request.args;
 
-          const collection = _this2.collection(request);
+          const collection = _this2.collection();
 
           return Promise.resolve(collection.delete({
             id
@@ -1485,7 +1485,7 @@
 
     _toCollection(method) {
       return request => {
-        const collection = this.collection(request);
+        const collection = this.collection();
         return collection[method](request.args);
       };
     }
@@ -1519,7 +1519,7 @@
             });
           }
 
-          const collection = _this3.collection(request);
+          const collection = _this3.collection();
 
           let {
             data

@@ -191,7 +191,7 @@ export default class GraphQLController {
     }
 
     const {id} = request.args;
-    const collection = this.collection(request);
+    const collection = this.collection();
     const deleted = await collection.delete({id});
     const deleted_at = new Date();
 
@@ -204,7 +204,7 @@ export default class GraphQLController {
 
   _toCollection (method) {
     return (request)=> {
-      const collection = this.collection(request);
+      const collection = this.collection();
       return collection[method](request.args);
     };
   }
@@ -215,7 +215,7 @@ export default class GraphQLController {
     const after = `after${cmethod}`;
 
     return async (request)=> {
-      const collection = this.collection(request);
+      const collection = this.collection();
 
       let {data} = request.args;
       if (this[before]) {
