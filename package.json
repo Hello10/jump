@@ -20,8 +20,8 @@
   "scripts": {
     "bootstrap": "yarn && lerna bootstrap",
     "build": "lerna exec --parallel -- yarn build",
+    "build:watch": "lerna exec --parallel -- yarn build:watch",
     "clean": "lerna exec --parallel -- yarn clean && rm -rf node_modules && rm -f yarn.lock",
-    "dev": "lerna exec --parallel -- yarn dev",
     "lint": "lerna exec --parallel -- yarn lint",
     "link:setup": "lerna exec --parallel -- yarn link && lerna exec --scope @hello10/jump-client -- yarn link @hello10/react-hooks",
     "rebootstrap": "yarn clean && yarn bootstrap",

@@ -215,14 +215,15 @@ export default class GraphQLController {
     const after = `after${cmethod}`;
 
     return async (request)=> {
+      const {args} = request;
       const collection = this.collection();
 
-      let {data} = request.args;
+      let {data} = args;
       if (this[before]) {
         data = await this[before](request);
       }
 
-      let doc = await collection[method]({data});
+      let doc = await collection[method](args);
       if (this[after]) {
         doc = await this[after]({...request, data, doc});
       }

@@ -1501,9 +1501,7 @@ class GraphQLController {
     return function (request) {
       try {
         function _temp7() {
-          return Promise.resolve(collection[method]({
-            data
-          })).then(function (doc) {
+          return Promise.resolve(collection[method](args)).then(function (doc) {
             const _temp5 = function () {
               if (_this3[after]) {
                 return Promise.resolve(_this3[after](_extends({}, request, {
@@ -1521,11 +1519,15 @@ class GraphQLController {
           });
         }
 
+        const {
+          args
+        } = request;
+
         const collection = _this3.collection();
 
         let {
           data
-        } = request.args;
+        } = args;
 
         const _temp6 = function () {
           if (_this3[before]) {

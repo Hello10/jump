@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-util",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Jump Util",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -12,8 +12,8 @@
   },
   "scripts": {
     "build": "microbundle --target node",
+    "build:watch": "microbundle watch --target node",
     "clean": "rm -rf node_modules && rm -rf dist && rm -f yarn.lock",
-    "dev": "microbundle watch --target node",
     "lint": "eslint ./src",
     "test": "echo 'no tests'"
   },

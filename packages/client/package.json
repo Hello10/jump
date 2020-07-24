@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-client",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "description": "Jump Client",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -12,8 +12,8 @@
   },
   "scripts": {
     "build": "microbundle --target node --jsx React.createElement",
+    "build:watch": "microbundle watch --target node --jsx React.createElement",
     "clean": "rm -rf node_modules && rm -rf dist && rm -f yarn.lock",
-    "dev": "microbundle watch --target node --jsx React.createElement",
     "lint": "eslint ./src",
     "test": "echo 'no tests'"
   },

@@ -1225,19 +1225,21 @@ class GraphQLController {
     const before = `before${cmethod}`;
     const after = `after${cmethod}`;
     return async function (request) {
+      const {
+        args
+      } = request;
+
       const collection = _this2.collection();
 
       let {
         data
-      } = request.args;
+      } = args;
 
       if (_this2[before]) {
         data = await _this2[before](request);
       }
 
-      let doc = await collection[method]({
-        data
-      });
+      let doc = await collection[method](args);
 
       if (_this2[after]) {
         doc = await _this2[after]({ ...request,

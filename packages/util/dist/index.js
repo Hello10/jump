@@ -55,6 +55,10 @@ function isValidEmail(email) {
   return regex.test(email);
 }
 
+function omitTypename(obj) {
+  return obj ? lodash.omit(obj, '__typename') : obj;
+}
+
 const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
 function randomReadableChar() {
@@ -96,6 +100,7 @@ exports.determineAddressType = determineAddressType;
 exports.generateUsername = generateUsername;
 exports.isGeneratedUsername = isGeneratedUsername;
 exports.isValidEmail = isValidEmail;
+exports.omitTypename = omitTypename;
 exports.readableCode = readableCode;
 exports.setwiseEqual = setwiseEqual;
 //# sourceMappingURL=index.js.map

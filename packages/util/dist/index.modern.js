@@ -2,7 +2,7 @@ import { randomInt } from '@hello10/util';
 export * from '@hello10/util';
 import Type from 'type-of-is';
 export { default as Type } from 'type-of-is';
-import { mapKeys, camelCase, pickBy, identity, compact, times, isEqual, sortBy } from 'lodash';
+import { mapKeys, camelCase, pickBy, identity, compact, omit, times, isEqual, sortBy } from 'lodash';
 import emailRegex from 'email-regex';
 import phoneRegex from 'phone-regex';
 
@@ -55,6 +55,10 @@ function isValidEmail(email) {
   return regex.test(email);
 }
 
+function omitTypename(obj) {
+  return obj ? omit(obj, '__typename') : obj;
+}
+
 const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
 function randomReadableChar() {
@@ -81,5 +85,5 @@ function isGeneratedUsername(username) {
   return username.match(regex);
 }
 
-export { camelCaseKeys, compact_ as compact, determineAddressType, generateUsername, isGeneratedUsername, isValidEmail, readableCode, setwiseEqual };
+export { camelCaseKeys, compact_ as compact, determineAddressType, generateUsername, isGeneratedUsername, isValidEmail, omitTypename, readableCode, setwiseEqual };
 //# sourceMappingURL=index.modern.js.map
