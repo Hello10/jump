@@ -1,7 +1,8 @@
 import 'babel-polyfill';
+import { useSingleton } from '@hello10/react-hooks';
+export * from '@hello10/react-hooks';
 import { useState, useEffect, createElement } from 'react';
 import PropTypes from 'prop-types';
-import { useSingleton } from '@hello10/react-hooks';
 import gql from 'graphql-tag';
 import { ApolloClient } from 'apollo-client';
 import { setContext } from 'apollo-link-context';

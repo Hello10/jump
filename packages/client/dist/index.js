@@ -1,9 +1,9 @@
 function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'default' in ex) ? ex['default'] : ex; }
 
 require('babel-polyfill');
+var reactHooks = require('@hello10/react-hooks');
 var React = require('react');
 var PropTypes = _interopDefault(require('prop-types'));
-var reactHooks = require('@hello10/react-hooks');
 var gql = _interopDefault(require('graphql-tag'));
 var apolloClient = require('apollo-client');
 var apolloLinkContext = require('apollo-link-context');
@@ -1386,6 +1386,14 @@ class Router extends reactHooks.useSingleton.Singleton {
 
 }
 
+Object.keys(reactHooks).forEach(function (k) {
+  if (k !== 'default') Object.defineProperty(exports, k, {
+    enumerable: true,
+    get: function () {
+      return reactHooks[k];
+    }
+  });
+});
 exports.ApplicationContainer = ApplicationContainer;
 exports.FirebaseSession = FirebaseSession;
 exports.PageContainer = PageContainer;

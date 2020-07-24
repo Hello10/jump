@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-util",
-  "version": "1.0.1",
+  "version": "2.0.3",
   "description": "Jump Util",
   "main": "dist/index.js",
   "source": "src/index.js",

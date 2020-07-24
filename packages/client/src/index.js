@@ -1,5 +1,6 @@
 import 'babel-polyfill';
 
+export * from '@hello10/react-hooks';
 export {default as ApplicationContainer} from './ApplicationContainer';
 export {default as FirebaseSession} from './FirebaseSession';
 export {default as getClient} from './getClient';

@@ -1,8 +1,8 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('babel-polyfill'), require('react'), require('prop-types'), require('@hello10/react-hooks'), require('graphql-tag'), require('apollo-client'), require('apollo-link-context'), require('apollo-link-http'), require('apollo-cache-inmemory'), require('lodash.get'), require('groutcho')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'babel-polyfill', 'react', 'prop-types', '@hello10/react-hooks', 'graphql-tag', 'apollo-client', 'apollo-link-context', 'apollo-link-http', 'apollo-cache-inmemory', 'lodash.get', 'groutcho'], factory) :
-  (global = global || self, factory(global.jumpClient = {}, null, global.react, global.PropTypes, global.reactHooks, global.gql, global.apolloClient, global.apolloLinkContext, global.apolloLinkHttp, global.apolloCacheInmemory, global.get, global.groutcho));
-}(this, (function (exports, babelPolyfill, React, PropTypes, reactHooks, gql, apolloClient, apolloLinkContext, apolloLinkHttp, apolloCacheInmemory, get, Groutcho) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('babel-polyfill'), require('@hello10/react-hooks'), require('react'), require('prop-types'), require('graphql-tag'), require('apollo-client'), require('apollo-link-context'), require('apollo-link-http'), require('apollo-cache-inmemory'), require('lodash.get'), require('groutcho')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'babel-polyfill', '@hello10/react-hooks', 'react', 'prop-types', 'graphql-tag', 'apollo-client', 'apollo-link-context', 'apollo-link-http', 'apollo-cache-inmemory', 'lodash.get', 'groutcho'], factory) :
+  (global = global || self, factory(global.jumpClient = {}, null, global.reactHooks, global.react, global.PropTypes, global.gql, global.apolloClient, global.apolloLinkContext, global.apolloLinkHttp, global.apolloCacheInmemory, global.get, global.groutcho));
+}(this, (function (exports, babelPolyfill, reactHooks, React, PropTypes, gql, apolloClient, apolloLinkContext, apolloLinkHttp, apolloCacheInmemory, get, Groutcho) {
   PropTypes = PropTypes && Object.prototype.hasOwnProperty.call(PropTypes, 'default') ? PropTypes['default'] : PropTypes;
   gql = gql && Object.prototype.hasOwnProperty.call(gql, 'default') ? gql['default'] : gql;
   get = get && Object.prototype.hasOwnProperty.call(get, 'default') ? get['default'] : get;
@@ -1382,6 +1382,14 @@
 
   }
 
+  Object.keys(reactHooks).forEach(function (k) {
+    if (k !== 'default') Object.defineProperty(exports, k, {
+      enumerable: true,
+      get: function () {
+        return reactHooks[k];
+      }
+    });
+  });
   exports.ApplicationContainer = ApplicationContainer;
   exports.FirebaseSession = FirebaseSession;
   exports.PageContainer = PageContainer;
