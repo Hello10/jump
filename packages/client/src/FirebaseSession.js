@@ -18,7 +18,7 @@ export default class FirebaseSession extends Session {
     const auth = this.Firebase.auth();
     this.unsubscribe = auth.onAuthStateChanged(async (firebase_user)=> {
       this.logger.debug('Firebase auth state changed', {firebase_user});
-      this._change(async ()=> {
+      await this._change(async ()=> {
         let user;
         if (firebase_user) {
           this.logger.debug('Getting firebase user token');

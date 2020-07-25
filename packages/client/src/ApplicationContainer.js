@@ -1,11 +1,8 @@
-import * as React from 'react';
-import {useEffect} from 'react';
+import React, {useEffect, useState} from 'react';
 import PropTypes from 'prop-types';
 
 import base_logger from './logger';
 import PageContainer from './PageContainer';
-
-// TODO: default loading and error views.
 
 export default function ApplicationContainer ({
   ApplicationLoading,
@@ -20,8 +17,10 @@ export default function ApplicationContainer ({
   const logger = base_logger.child('ApplicationContainer');
   logger.debug('Rendering ApplicationContainer');
 
-  const session = useSession();
   const router = useRouter();
+  const [match, setMatch] = useState(null);
+  const session = useSession();
+  const {user} = session;
 
   useEffect(()=> {
     logger.debug('Loading session');
@@ -32,20 +31,22 @@ export default function ApplicationContainer ({
     };
   }, []);
 
-  const {user, loaded, error} = session;
-  if (loaded) {
+  useEffect(()=> {
     logger.debug('Running router', {session, user});
     const match = router.match({user});
-
-    if (match.redirect) {
+    const {route, redirect} = match;
+    if (redirect) {
       let msg = 'Got redirect';
-      const name = match.route?.name;
+      const name = route?.name;
       if (name) {
         msg = `${msg} to ${name}`;
       }
       logger.info(msg, {match});
     }
+    setMatch(match);
+  }, [user, router.url]);
 
+  if (match && session.loaded) {
     return (
       <Container
         match={match}
@@ -62,7 +63,7 @@ export default function ApplicationContainer ({
   } else {
     return (
       <ApplicationLoading
-        error={error}
+        error={session.error}
         user={user}
         {...props}
       />

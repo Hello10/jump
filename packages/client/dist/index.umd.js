@@ -3,6 +3,7 @@
   typeof define === 'function' && define.amd ? define(['exports', 'babel-polyfill', '@hello10/react-hooks', 'react', 'prop-types', 'graphql-tag', 'apollo-client', 'apollo-link-context', 'apollo-link-http', 'apollo-cache-inmemory', 'lodash.get', 'groutcho'], factory) :
   (global = global || self, factory(global.jumpClient = {}, null, global.reactHooks, global.react, global.PropTypes, global.gql, global.apolloClient, global.apolloLinkContext, global.apolloLinkHttp, global.apolloCacheInmemory, global.get, global.groutcho));
 }(this, (function (exports, babelPolyfill, reactHooks, React, PropTypes, gql, apolloClient, apolloLinkContext, apolloLinkHttp, apolloCacheInmemory, get, Groutcho) {
+  var React__default = 'default' in React ? React['default'] : React;
   PropTypes = PropTypes && Object.prototype.hasOwnProperty.call(PropTypes, 'default') ? PropTypes['default'] : PropTypes;
   gql = gql && Object.prototype.hasOwnProperty.call(gql, 'default') ? gql['default'] : gql;
   get = get && Object.prototype.hasOwnProperty.call(get, 'default') ? get['default'] : get;
@@ -463,8 +464,12 @@
 
     const logger$1 = logger.child('ApplicationContainer');
     logger$1.debug('Rendering ApplicationContainer');
-    const session = useSession();
     const router = useRouter();
+    const [match, setMatch] = React.useState(null);
+    const session = useSession();
+    const {
+      user
+    } = session;
     React.useEffect(() => {
       logger$1.debug('Loading session');
       session.load();
@@ -473,13 +478,7 @@
         session.unload();
       };
     }, []);
-    const {
-      user,
-      loaded,
-      error
-    } = session;
-
-    if (loaded) {
+    React.useEffect(() => {
       logger$1.debug('Running router', {
         session,
         user
@@ -487,12 +486,14 @@
       const match = router.match({
         user
       });
+      const {
+        route,
+        redirect
+      } = match;
 
-      if (match.redirect) {
-        var _match$route;
-
+      if (redirect) {
         let msg = 'Got redirect';
-        const name = (_match$route = match.route) == null ? void 0 : _match$route.name;
+        const name = route == null ? void 0 : route.name;
 
         if (name) {
           msg = `${msg} to ${name}`;
@@ -503,17 +504,21 @@
         });
       }
 
-      return /*#__PURE__*/React.createElement(Container, {
+      setMatch(match);
+    }, [user, router.url]);
+
+    if (match && session.loaded) {
+      return /*#__PURE__*/React__default.createElement(Container, {
         match: match
-      }, /*#__PURE__*/React.createElement(PageContainer, _extends({
+      }, /*#__PURE__*/React__default.createElement(PageContainer, _extends({
         Loading: PageLoading,
         Error: PageError,
         match: match,
         client: client
       }, props)));
     } else {
-      return /*#__PURE__*/React.createElement(ApplicationLoading, _extends({
-        error: error,
+      return /*#__PURE__*/React__default.createElement(ApplicationLoading, _extends({
+        error: session.error,
         user: user
       }, props));
     }
@@ -824,7 +829,7 @@
               firebase_user
             });
 
-            _this._change(function () {
+            return Promise.resolve(_this._change(function () {
               try {
                 function _temp2() {
                   return {
@@ -867,9 +872,7 @@
               } catch (e) {
                 return Promise.reject(e);
               }
-            });
-
-            return Promise.resolve();
+            })).then(function () {});
           } catch (e) {
             return Promise.reject(e);
           }

@@ -3,6 +3,7 @@ function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'defau
 require('babel-polyfill');
 var reactHooks = require('@hello10/react-hooks');
 var React = require('react');
+var React__default = _interopDefault(React);
 var PropTypes = _interopDefault(require('prop-types'));
 var gql = _interopDefault(require('graphql-tag'));
 var apolloClient = require('apollo-client');
@@ -467,8 +468,12 @@ function ApplicationContainer(_ref) {
 
   const logger$1 = logger.child('ApplicationContainer');
   logger$1.debug('Rendering ApplicationContainer');
-  const session = useSession();
   const router = useRouter();
+  const [match, setMatch] = React.useState(null);
+  const session = useSession();
+  const {
+    user
+  } = session;
   React.useEffect(() => {
     logger$1.debug('Loading session');
     session.load();
@@ -477,13 +482,7 @@ function ApplicationContainer(_ref) {
       session.unload();
     };
   }, []);
-  const {
-    user,
-    loaded,
-    error
-  } = session;
-
-  if (loaded) {
+  React.useEffect(() => {
     logger$1.debug('Running router', {
       session,
       user
@@ -491,12 +490,14 @@ function ApplicationContainer(_ref) {
     const match = router.match({
       user
     });
+    const {
+      route,
+      redirect
+    } = match;
 
-    if (match.redirect) {
-      var _match$route;
-
+    if (redirect) {
       let msg = 'Got redirect';
-      const name = (_match$route = match.route) == null ? void 0 : _match$route.name;
+      const name = route == null ? void 0 : route.name;
 
       if (name) {
         msg = `${msg} to ${name}`;
@@ -507,17 +508,21 @@ function ApplicationContainer(_ref) {
       });
     }
 
-    return /*#__PURE__*/React.createElement(Container, {
+    setMatch(match);
+  }, [user, router.url]);
+
+  if (match && session.loaded) {
+    return /*#__PURE__*/React__default.createElement(Container, {
       match: match
-    }, /*#__PURE__*/React.createElement(PageContainer, _extends({
+    }, /*#__PURE__*/React__default.createElement(PageContainer, _extends({
       Loading: PageLoading,
       Error: PageError,
       match: match,
       client: client
     }, props)));
   } else {
-    return /*#__PURE__*/React.createElement(ApplicationLoading, _extends({
-      error: error,
+    return /*#__PURE__*/React__default.createElement(ApplicationLoading, _extends({
+      error: session.error,
       user: user
     }, props));
   }
@@ -828,7 +833,7 @@ class FirebaseSession extends Session {
             firebase_user
           });
 
-          _this._change(function () {
+          return Promise.resolve(_this._change(function () {
             try {
               function _temp2() {
                 return {
@@ -871,9 +876,7 @@ class FirebaseSession extends Session {
             } catch (e) {
               return Promise.reject(e);
             }
-          });
-
-          return Promise.resolve();
+          })).then(function () {});
         } catch (e) {
           return Promise.reject(e);
         }

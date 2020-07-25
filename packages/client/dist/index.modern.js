@@ -1,7 +1,7 @@
 import 'babel-polyfill';
 import { useSingleton } from '@hello10/react-hooks';
 export * from '@hello10/react-hooks';
-import { useState, useEffect, createElement } from 'react';
+import React__default, { useState, useEffect, createElement } from 'react';
 import PropTypes from 'prop-types';
 import gql from 'graphql-tag';
 import { ApolloClient } from 'apollo-client';
@@ -393,8 +393,12 @@ function ApplicationContainer({
 }) {
   const logger$1 = logger.child('ApplicationContainer');
   logger$1.debug('Rendering ApplicationContainer');
-  const session = useSession();
   const router = useRouter();
+  const [match, setMatch] = useState(null);
+  const session = useSession();
+  const {
+    user
+  } = session;
   useEffect(() => {
     logger$1.debug('Loading session');
     session.load();
@@ -403,13 +407,7 @@ function ApplicationContainer({
       session.unload();
     };
   }, []);
-  const {
-    user,
-    loaded,
-    error
-  } = session;
-
-  if (loaded) {
+  useEffect(() => {
     logger$1.debug('Running router', {
       session,
       user
@@ -417,10 +415,14 @@ function ApplicationContainer({
     const match = router.match({
       user
     });
+    const {
+      route,
+      redirect
+    } = match;
 
-    if (match.redirect) {
+    if (redirect) {
       let msg = 'Got redirect';
-      const name = match.route?.name;
+      const name = route?.name;
 
       if (name) {
         msg = `${msg} to ${name}`;
@@ -431,17 +433,21 @@ function ApplicationContainer({
       });
     }
 
-    return /*#__PURE__*/createElement(Container, {
+    setMatch(match);
+  }, [user, router.url]);
+
+  if (match && session.loaded) {
+    return /*#__PURE__*/React__default.createElement(Container, {
       match: match
-    }, /*#__PURE__*/createElement(PageContainer, Object.assign({
+    }, /*#__PURE__*/React__default.createElement(PageContainer, Object.assign({
       Loading: PageLoading,
       Error: PageError,
       match: match,
       client: client
     }, props)));
   } else {
-    return /*#__PURE__*/createElement(ApplicationLoading, Object.assign({
-      error: error,
+    return /*#__PURE__*/React__default.createElement(ApplicationLoading, Object.assign({
+      error: session.error,
       user: user
     }, props));
   }
@@ -670,7 +676,7 @@ class FirebaseSession extends Session {
         firebase_user
       });
 
-      _this._change(async function () {
+      await _this._change(async function () {
         let user;
 
         if (firebase_user) {
