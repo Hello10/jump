@@ -39,17 +39,25 @@ export default class Router extends useSingleton.Singleton {
     return this.state.url;
   }
 
+  get error () {
+    return this.state.error;
+  }
+
   match (input) {
     this.input = input;
     const match = this.router.match({
       ...input,
       url: this.url
     });
-    const {redirect, url} = match;
-    if (redirect) {
-      this._setUrl(url);
+    this.logger.debug('Router match', {match, input});
+    if (match) {
+      if (match.redirect) {
+        this._setUrl(match.url);
+      }
+    } else {
+      const error = new Error('Router could not match url');
+      this.setState({error});
     }
-    this.logger.debug('Router got match', {match, input});
     return match;
   }
 

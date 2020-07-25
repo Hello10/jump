@@ -32,21 +32,26 @@ export default function ApplicationContainer ({
   }, []);
 
   useEffect(()=> {
-    logger.debug('Running router', {session, user});
-    const match = router.match({user});
-    const {route, redirect} = match;
-    if (redirect) {
-      let msg = 'Got redirect';
-      const name = route?.name;
-      if (name) {
-        msg = `${msg} to ${name}`;
-      }
-      logger.info(msg, {match});
+    logger.debug('Running router', {user});
+    if (!session.loaded) {
+      return;
     }
-    setMatch(match);
+    const match = router.match({user});
+    if (match) {
+      const {route, redirect} = match;
+      if (redirect) {
+        let msg = 'Got redirect';
+        const name = route?.name;
+        if (name) {
+          msg = `${msg} to ${name}`;
+        }
+        logger.info(msg, {match});
+      }
+      setMatch(match);
+    }
   }, [user, router.url]);
 
-  if (match && session.loaded) {
+  if (session.loaded && match) {
     return (
       <Container
         match={match}
@@ -63,7 +68,7 @@ export default function ApplicationContainer ({
   } else {
     return (
       <ApplicationLoading
-        error={session.error}
+        error={session.error || router.error}
         user={user}
         {...props}
       />
