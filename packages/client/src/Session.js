@@ -1,3 +1,4 @@
+import {mapp} from '@hello10/util';
 import {useSingleton} from '@hello10/react-hooks';
 
 import logger from './logger';
@@ -5,6 +6,7 @@ import logger from './logger';
 export default class Session extends useSingleton.Singleton {
   initialize () {
     const {
+      Firebase,
       SessionUser,
       client,
       shouldEndSessionOnError = ()=> {
@@ -15,6 +17,7 @@ export default class Session extends useSingleton.Singleton {
     SessionUser.client = client;
     const user = new SessionUser();
 
+    this.Firebase = Firebase;
     this.SessionUser = SessionUser;
     this.client = client;
     this.shouldEndSessionOnError = shouldEndSessionOnError;
@@ -36,6 +39,11 @@ export default class Session extends useSingleton.Singleton {
     return this.state.user;
   }
 
+  set user (data) {
+    const user = new this.SessionUser(data);
+    this.setState({user});
+  }
+
   get changing () {
     return this.state.changing;
   }
@@ -50,6 +58,10 @@ export default class Session extends useSingleton.Singleton {
 
   get load_error () {
     return this.loaded ? null : this.error;
+  }
+
+  apps (fn) {
+    return mapp(this.Firebase.apps, fn);
   }
 
   async load () {
@@ -73,6 +85,13 @@ export default class Session extends useSingleton.Singleton {
       const {user, auth} = await this.SessionUser.start(args);
       this.logger.debug('Session started, setting auth', {user});
       await this.client.setAuth(auth);
+      await this.apps((app)=> {
+        const app_token = auth.app_tokens.find(({name})=> name === app.name);
+        if (!app_token) {
+          return null;
+        }
+        return app.auth().signInWithCustomToken(app_token.token);
+      });
       return {user};
     });
   }
@@ -104,9 +123,12 @@ export default class Session extends useSingleton.Singleton {
         await SessionUser.end(args);
         this.logger.debug('Session ended');
       } catch (error) {
-        this.logger.error('Error ending sesssion', error);
+        this.logger.error('Error ending session', error);
       }
       await this.client.clearAuth();
+      await this.apps((app)=> {
+        app.auth().signOut();
+      });
       const user = new SessionUser();
       return {user};
     });

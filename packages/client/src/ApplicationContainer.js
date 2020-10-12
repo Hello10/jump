@@ -1,8 +1,8 @@
-import React, {useEffect, useState} from 'react';
+import React, {useEffect} from 'react';
 import PropTypes from 'prop-types';
 
 import base_logger from './logger';
-import PageContainer from './PageContainer';
+import {PageContainer} from './PageContainer';
 
 export default function ApplicationContainer ({
   ApplicationLoading,
@@ -18,7 +18,6 @@ export default function ApplicationContainer ({
   logger.debug('Rendering ApplicationContainer');
 
   const router = useRouter();
-  const [match, setMatch] = useState(null);
   const session = useSession();
   const {user} = session;
 
@@ -36,30 +35,27 @@ export default function ApplicationContainer ({
     if (!session.loaded) {
       return;
     }
-    const match = router.match({user});
-    if (match) {
-      const {route, redirect} = match;
-      if (redirect) {
-        let msg = 'Got redirect';
-        const name = route?.name;
-        if (name) {
-          msg = `${msg} to ${name}`;
-        }
-        logger.info(msg, {match});
+    const match = router.start({user});
+    if (match?.redirect) {
+      const {route} = match;
+      let msg = 'Got redirect';
+      const name = route?.name;
+      if (name) {
+        msg = `${msg} to ${name}`;
       }
-      setMatch(match);
+      logger.info(msg, {match});
     }
-  }, [user, router.url]);
+  }, [user]);
 
-  if (session.loaded && match) {
+  if (session.loaded && router.match) {
     return (
       <Container
-        match={match}
+        match={router.match}
       >
         <PageContainer
           Loading={PageLoading}
           Error={PageError}
-          match={match}
+          match={router.match}
           client={client}
           {...props}
         />

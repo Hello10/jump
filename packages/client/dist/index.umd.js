@@ -1,13 +1,11 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('babel-polyfill'), require('@hello10/react-hooks'), require('react'), require('prop-types'), require('@hello10/logger'), require('graphql-tag'), require('apollo-client'), require('apollo-link-context'), require('apollo-link-http'), require('apollo-cache-inmemory'), require('lodash.get'), require('groutcho')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'babel-polyfill', '@hello10/react-hooks', 'react', 'prop-types', '@hello10/logger', 'graphql-tag', 'apollo-client', 'apollo-link-context', 'apollo-link-http', 'apollo-cache-inmemory', 'lodash.get', 'groutcho'], factory) :
-  (global = global || self, factory(global.jumpClient = {}, null, global.reactHooks, global.react, global.PropTypes, global.Logger, global.gql, global.apolloClient, global.apolloLinkContext, global.apolloLinkHttp, global.apolloCacheInmemory, global.get, global.groutcho));
-}(this, (function (exports, babelPolyfill, reactHooks, React, PropTypes, Logger, gql, apolloClient, apolloLinkContext, apolloLinkHttp, apolloCacheInmemory, get, Groutcho) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('babel-polyfill'), require('@hello10/react-hooks'), require('react'), require('@apollo/client'), require('@hello10/logger'), require('prop-types'), require('@apollo/client/link/context'), require('groutcho')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'babel-polyfill', '@hello10/react-hooks', 'react', '@apollo/client', '@hello10/logger', 'prop-types', '@apollo/client/link/context', 'groutcho'], factory) :
+  (global = global || self, factory(global.jumpClient = {}, null, global.reactHooks, global.react, global.client, global.Logger, global.PropTypes, global.context, global.groutcho));
+}(this, (function (exports, babelPolyfill, reactHooks, React, client, Logger, PropTypes, context, Groutcho) {
   var React__default = 'default' in React ? React['default'] : React;
-  PropTypes = PropTypes && Object.prototype.hasOwnProperty.call(PropTypes, 'default') ? PropTypes['default'] : PropTypes;
   Logger = Logger && Object.prototype.hasOwnProperty.call(Logger, 'default') ? Logger['default'] : Logger;
-  gql = gql && Object.prototype.hasOwnProperty.call(gql, 'default') ? gql['default'] : gql;
-  get = get && Object.prototype.hasOwnProperty.call(get, 'default') ? get['default'] : get;
+  PropTypes = PropTypes && Object.prototype.hasOwnProperty.call(PropTypes, 'default') ? PropTypes['default'] : PropTypes;
   Groutcho = Groutcho && Object.prototype.hasOwnProperty.call(Groutcho, 'default') ? Groutcho['default'] : Groutcho;
 
   function _extends() {
@@ -45,149 +43,100 @@
 
   const logger = new Logger('jump');
 
-  function _catch(body, recover) {
-    try {
-      var result = body();
-    } catch (e) {
-      return recover(e);
+  const logger$1 = logger.child('PageContainer');
+
+  function Query(_ref) {
+    let {
+      Loading,
+      Error,
+      Page
+    } = _ref,
+        page_props = _objectWithoutPropertiesLoose(_ref, ["Loading", "Error", "Page"]);
+
+    const {
+      name,
+      params,
+      user
+    } = page_props;
+
+    const _Page$query = Page.query({
+      params,
+      user
+    }),
+          {
+      query: query_gql
+    } = _Page$query,
+          options = _objectWithoutPropertiesLoose(_Page$query, ["query"]);
+
+    const query = client.useQuery(query_gql, options);
+    const {
+      loading,
+      error,
+      data
+    } = query;
+    logger$1.debug('Rendering page container query', _extends({}, page_props, {
+      loading,
+      error,
+      data
+    }));
+
+    if (loading) {
+      logger$1.debug(`Rendering loading for ${name}`);
+      return /*#__PURE__*/React.createElement(Loading, _extends({
+        Page: Page,
+        query: query
+      }, page_props));
+    } else if (error) {
+      logger$1.debug(`Rendering error for ${name}`);
+      return /*#__PURE__*/React.createElement(Error, _extends({
+        Page: Page,
+        error: error,
+        query: query
+      }, page_props));
+    } else {
+      logger$1.debug(`Rendering loaded for ${name}`);
+      return /*#__PURE__*/React.createElement(Page, _extends({
+        data: data,
+        query: query
+      }, page_props));
     }
-
-    if (result && result.then) {
-      return result.then(void 0, recover);
-    }
-
-    return result;
-  }
-
-  function _finallyRethrows(body, finalizer) {
-    try {
-      var result = body();
-    } catch (e) {
-      return finalizer(true, e);
-    }
-
-    if (result && result.then) {
-      return result.then(finalizer.bind(null, false), finalizer.bind(null, true));
-    }
-
-    return finalizer(false, result);
   }
 
   function PageContainer({
     Loading,
     Error,
     match,
-    client
+    user
   }) {
     const {
-      params,
-      route
+      route,
+      params
     } = match;
     const {
       page: Page,
       name
     } = route;
-    const logger$1 = logger.child('PageContainer');
-    const [last_match, setLastMatch] = React.useState(match);
-    const [loading, setLoading] = React.useState(true);
-    const [error, setError] = React.useState(null);
-    const [data, setData] = React.useState(null);
-
-    if (match !== last_match) {
-      logger$1.debug('Resetting for new page', {
-        last_match,
-        match
-      });
-      setLoading(true);
-      setError(null);
-      setData(null);
-      setLastMatch(match);
-    }
-
-    logger$1.debug('Rendering page container', {
-      match,
-      loading,
-      error,
-      data
-    });
-    React.useEffect(() => {
-      const runQuery = function () {
-        try {
-          if (unmounted) {
-            logger$1.debug('Skip unmounted query');
-            return Promise.resolve();
-          }
-
-          const _temp = _finallyRethrows(function () {
-            return _catch(function () {
-              const page_query = Page.query(params);
-              logger$1.debug('Running query', page_query);
-              return Promise.resolve(client.query(page_query)).then(function ({
-                data
-              }) {
-                logger$1.debug('Ran query', data);
-                setData(data);
-              });
-            }, function (error) {
-              logger$1.error('Error running query', error);
-              setError(error);
-            });
-          }, function (_wasThrown, _result) {
-            logger$1.debug('Done loading');
-            setLoading(false);
-            if (_wasThrown) throw _result;
-            return _result;
-          });
-
-          return Promise.resolve(_temp && _temp.then ? _temp.then(function () {}) : void 0);
-        } catch (e) {
-          return Promise.reject(e);
-        }
-      };
-
-      let unmounted = false;
-
-      if (Page.query) {
-        runQuery();
-      } else {
-        setLoading(false);
-      }
-
-      return () => {
-        logger$1.debug('Unmounting page container');
-        unmounted = true;
-      };
-    }, [match]);
-    const props = {
-      Page,
+    const page_props = {
       match,
       route,
-      params
+      params,
+      user,
+      name
     };
 
-    if (loading) {
-      logger$1.debug(`Rendering loading for ${name}`);
-      return /*#__PURE__*/React.createElement(Loading, props);
-    } else if (error) {
-      logger$1.debug(`Rendering error for ${name}`);
-      return /*#__PURE__*/React.createElement(Error, _extends({
-        error: error
-      }, props));
+    if (Page.query) {
+      return /*#__PURE__*/React.createElement(Query, _extends({
+        Loading: Loading,
+        Error: Error,
+        Page: Page
+      }, page_props));
     } else {
-      logger$1.debug(`Rendering loaded for ${name}`);
       return /*#__PURE__*/React.createElement(Page, _extends({
-        match: match,
-        params: params,
-        route: route
-      }, data));
+        data: {},
+        query: null
+      }, page_props));
     }
   }
-  PageContainer.propTypes = {
-    Loading: PropTypes.func,
-    Error: PropTypes.func,
-    match: PropTypes.object,
-    client: PropTypes.object
-  };
 
   function ApplicationContainer(_ref) {
     let {
@@ -204,7 +153,6 @@
     const logger$1 = logger.child('ApplicationContainer');
     logger$1.debug('Rendering ApplicationContainer');
     const router = useRouter();
-    const [match, setMatch] = React.useState(null);
     const session = useSession();
     const {
       user
@@ -226,40 +174,34 @@
         return;
       }
 
-      const match = router.match({
+      const match = router.start({
         user
       });
 
-      if (match) {
+      if (match == null ? void 0 : match.redirect) {
         const {
-          route,
-          redirect
+          route
         } = match;
+        let msg = 'Got redirect';
+        const name = route == null ? void 0 : route.name;
 
-        if (redirect) {
-          let msg = 'Got redirect';
-          const name = route == null ? void 0 : route.name;
-
-          if (name) {
-            msg = `${msg} to ${name}`;
-          }
-
-          logger$1.info(msg, {
-            match
-          });
+        if (name) {
+          msg = `${msg} to ${name}`;
         }
 
-        setMatch(match);
+        logger$1.info(msg, {
+          match
+        });
       }
-    }, [user, router.url]);
+    }, [user]);
 
-    if (session.loaded && match) {
+    if (session.loaded && router.match) {
       return /*#__PURE__*/React__default.createElement(Container, {
-        match: match
+        match: router.match
       }, /*#__PURE__*/React__default.createElement(PageContainer, _extends({
         Loading: PageLoading,
         Error: PageError,
-        match: match,
+        match: router.match,
         client: client
       }, props)));
     } else {
@@ -282,7 +224,115 @@
     useSession: PropTypes.func
   };
 
-  function _catch$1(body, recover) {
+  function buildEnum(types) {
+    return types.reduce((Types, type) => {
+      Types[type] = type;
+      return Types;
+    }, {});
+  }
+
+  const types = buildEnum(['array', 'first', 'last']);
+
+  function indexer(arg) {
+    if (!arg) {
+      arg = {
+        attr: 'id',
+        type: types.first
+      };
+    }
+
+    if (arg.constructor === String) {
+      arg = {
+        attr: arg
+      };
+    }
+
+    const {
+      attr,
+      type = types.array
+    } = arg;
+
+    if (!(type in types)) {
+      throw new Error('Invalid index type');
+    }
+
+    return function index(items) {
+      const index = {};
+
+      for (const item of items) {
+        const value = item[attr];
+        const has_value = (value in index);
+
+        if (type === types.array) {
+          if (!has_value) {
+            index[value] = [];
+          }
+
+          index[value].push(item);
+        } else if (type === types.first) {
+          if (!has_value) {
+            index[value] = item;
+          }
+        } else {
+          index[value] = item;
+        }
+      }
+
+      return index;
+    };
+  }
+
+  for (const [k, v] of Object.entries(types)) {
+    indexer[k] = v;
+  }
+
+  const indexById = indexer();
+
+  const mapp = function (iterable, map, options = {}) {
+    try {
+      let concurrency = options.concurrency || Infinity;
+      let index = 0;
+      const results = [];
+      const runs = [];
+      const iterator = iterable[Symbol.iterator]();
+      const sentinel = Symbol('sentinel');
+
+      function run() {
+        const {
+          done,
+          value
+        } = iterator.next();
+
+        if (done) {
+          return sentinel;
+        } else {
+          const i = index++;
+          const p = map(value, i);
+          return Promise.resolve(p).then(result => {
+            results[i] = result;
+            return run();
+          });
+        }
+      }
+
+      while (concurrency-- > 0) {
+        const r = run();
+
+        if (r === sentinel) {
+          break;
+        } else {
+          runs.push(r);
+        }
+      }
+
+      return Promise.all(runs).then(() => results);
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  };
+  var mapp_1 = mapp;
+
+  function _catch(body, recover) {
     try {
       var result = body();
     } catch (e) {
@@ -299,6 +349,7 @@
   class Session extends reactHooks.useSingleton.Singleton {
     initialize() {
       const {
+        Firebase,
         SessionUser,
         client,
         shouldEndSessionOnError = () => {
@@ -307,6 +358,7 @@
       } = this.options;
       SessionUser.client = client;
       const user = new SessionUser();
+      this.Firebase = Firebase;
       this.SessionUser = SessionUser;
       this.client = client;
       this.shouldEndSessionOnError = shouldEndSessionOnError;
@@ -326,6 +378,13 @@
       return this.state.user;
     }
 
+    set user(data) {
+      const user = new this.SessionUser(data);
+      this.setState({
+        user
+      });
+    }
+
     get changing() {
       return this.state.changing;
     }
@@ -340,6 +399,10 @@
 
     get load_error() {
       return this.loaded ? null : this.error;
+    }
+
+    apps(fn) {
+      return mapp_1(this.Firebase.apps, fn);
     }
 
     load() {
@@ -388,9 +451,21 @@
             });
 
             return Promise.resolve(_this2.client.setAuth(auth)).then(function () {
-              return {
-                user
-              };
+              return Promise.resolve(_this2.apps(app => {
+                const app_token = auth.app_tokens.find(({
+                  name
+                }) => name === app.name);
+
+                if (!app_token) {
+                  return null;
+                }
+
+                return app.auth().signInWithCustomToken(app_token.token);
+              })).then(function () {
+                return {
+                  user
+                };
+              });
             });
           });
         } catch (e) {
@@ -452,19 +527,23 @@
         try {
           function _temp2() {
             return Promise.resolve(_this4.client.clearAuth()).then(function () {
-              const user = new SessionUser();
-              return {
-                user
-              };
+              return Promise.resolve(_this4.apps(app => {
+                app.auth().signOut();
+              })).then(function () {
+                const user = new SessionUser();
+                return {
+                  user
+                };
+              });
             });
           }
 
-          const _temp = _catch$1(function () {
+          const _temp = _catch(function () {
             return Promise.resolve(SessionUser.end(args)).then(function () {
               _this4.logger.debug('Session ended');
             });
           }, function (error) {
-            _this4.logger.error('Error ending sesssion', error);
+            _this4.logger.error('Error ending session', error);
           });
 
           return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
@@ -484,7 +563,7 @@
           });
         }
 
-        const _temp5 = _catch$1(function () {
+        const _temp5 = _catch(function () {
           return Promise.resolve(action()).then(function (state) {
             _this5.setState(_extends({
               changing: false,
@@ -529,7 +608,7 @@
 
   }
 
-  function _catch$2(body, recover) {
+  function _catch$1(body, recover) {
     try {
       var result = body();
     } catch (e) {
@@ -545,11 +624,7 @@
 
   class FirebaseSession extends Session {
     get auth() {
-      return this.options.auth;
-    }
-
-    get Firebase() {
-      return this.options.Firebase;
+      return this.Firebase.auth();
     }
 
     load() {
@@ -566,10 +641,7 @@
           SessionUser,
           client
         } = _this;
-
-        const auth = _this.Firebase.auth();
-
-        _this.unsubscribe = auth.onAuthStateChanged(function (firebase_user) {
+        _this.unsubscribe = _this.auth.onAuthStateChanged(function (firebase_user) {
           try {
             _this.logger.debug('Firebase auth state changed', {
               firebase_user
@@ -664,7 +736,7 @@
           Firebase,
           auth
         } = _this3;
-        return Promise.resolve(_catch$2(function () {
+        return Promise.resolve(_catch$1(function () {
           let credential;
 
           const _temp7 = function () {
@@ -772,7 +844,7 @@
 
   }
 
-  function _catch$3(body, recover) {
+  function _catch$2(body, recover) {
     try {
       var result = body();
     } catch (e) {
@@ -790,26 +862,19 @@
     token: null,
     refresh_token: null
   };
+  let auth = null;
   function getClient({
     uri,
     storage,
-    storage_key = 'JUMP_AUTH'
+    storage_key = 'JUMP_AUTH',
+    options = {},
+    cache_options = {}
   }) {
     const clearAuth = function () {
       try {
-        function _temp5() {
-          return writeClientAuth(NO_SESSION);
-        }
-
         logger$1.debug('Clearing session auth');
-
-        const _temp4 = function () {
-          if (storage) {
-            return Promise.resolve(writeAuthToStorage(NO_SESSION)).then(function () {});
-          }
-        }();
-
-        return Promise.resolve(_temp4 && _temp4.then ? _temp4.then(_temp5) : _temp5(_temp4));
+        setAuth(NO_SESSION);
+        return Promise.resolve();
       } catch (e) {
         return Promise.reject(e);
       }
@@ -822,27 +887,30 @@
         }
 
         logger$1.debug('Loading session auth');
-        return Promise.resolve(readAuthFromStorage()).then(writeClientAuth);
+        return Promise.resolve(readAuthFromStorage()).then(function (_readAuthFromStorage) {
+          auth = _readAuthFromStorage;
+          return auth;
+        });
       } catch (e) {
         return Promise.reject(e);
       }
     };
 
-    const setAuth = function (auth) {
+    const setAuth = function (new_auth) {
       try {
-        function _temp3() {
-          return writeClientAuth(auth);
+        function _temp5() {
+          auth = new_auth;
         }
 
         logger$1.debug('Setting session auth');
 
-        const _temp2 = function () {
+        const _temp4 = function () {
           if (storage) {
-            return Promise.resolve(writeAuthToStorage(auth)).then(function () {});
+            return Promise.resolve(writeAuthToStorage(new_auth)).then(function () {});
           }
         }();
 
-        return Promise.resolve(_temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2));
+        return Promise.resolve(_temp4 && _temp4.then ? _temp4.then(_temp5) : _temp5(_temp4));
       } catch (e) {
         return Promise.reject(e);
       }
@@ -853,38 +921,17 @@
         logger$1.debug('Reading auth from storage');
         let auth;
 
-        const _temp = _catch$3(function () {
+        const _temp3 = _catch$2(function () {
           return Promise.resolve(storage.getItem(storage_key)).then(function (json) {
-            auth = JSON.parse(json) || {};
+            auth = JSON.parse(json) || NO_SESSION;
           });
         }, function () {
-          auth = {};
+          auth = NO_SESSION;
         });
 
-        return Promise.resolve(_temp && _temp.then ? _temp.then(function () {
+        return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(function () {
           return auth;
         }) : auth);
-      } catch (e) {
-        return Promise.reject(e);
-      }
-    };
-
-    const readClientAuth = function () {
-      try {
-        logger$1.debug('Getting client auth');
-        const query = gql`
-      {
-        token @client
-        refresh_token @client
-      }
-    `;
-        return Promise.resolve(client.query({
-          query
-        })).then(function ({
-          data
-        }) {
-          return data;
-        });
       } catch (e) {
         return Promise.reject(e);
       }
@@ -895,17 +942,16 @@
       uri
     });
     logger$1.info('Getting client');
-    const http_link = apolloLinkHttp.createHttpLink({
+    const http_link = new client.HttpLink({
       uri
     });
-    const auth_link = apolloLinkContext.setContext(function (request, prev_context) {
+    const auth_link = context.setContext(function (request, prev_context) {
       try {
-        const {
-          headers = {}
-        } = prev_context;
-        return Promise.resolve(readClientAuth()).then(function ({
-          token
-        }) {
+        function _temp2() {
+          const {
+            token
+          } = auth;
+
           if (token) {
             logger$1.debug('Adding auth token to header');
             headers.authorization = token ? `Bearer ${token}` : '';
@@ -914,25 +960,30 @@
           return {
             headers
           };
-        });
+        }
+
+        const {
+          headers = {}
+        } = prev_context;
+
+        const _temp = function () {
+          if (!auth) {
+            return Promise.resolve(loadAuth()).then(function () {});
+          }
+        }();
+
+        return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
       } catch (e) {
         return Promise.reject(e);
       }
     });
-    const link = auth_link.concat(http_link);
-    const cache = new apolloCacheInmemory.InMemoryCache();
-    const client = new apolloClient.ApolloClient({
+    const link = client.from([auth_link, http_link]);
+    const cache = new client.InMemoryCache(cache_options);
+    const client$1 = new client.ApolloClient({
       link,
-      cache
+      cache,
+      defaultOptions: options
     });
-    writeClientAuth(NO_SESSION);
-
-    function writeClientAuth(auth) {
-      logger$1.debug('Setting client auth');
-      return client.writeData({
-        data: auth
-      });
-    }
 
     function writeAuthToStorage(auth) {
       logger$1.debug('Writing auth to storage');
@@ -940,20 +991,20 @@
       return storage.setItem(storage_key, json);
     }
 
-    client.setAuth = setAuth;
-    client.loadAuth = loadAuth;
-    client.clearAuth = clearAuth;
-    return client;
+    client$1.setAuth = setAuth;
+    client$1.loadAuth = loadAuth;
+    client$1.clearAuth = clearAuth;
+    return client$1;
   }
 
   function getGraphQLErrorCode(error) {
-    let code = get(error, 'graphQLErrors[0].extensions.code', null);
+    var _error, _error$extensions;
 
-    if (!code) {
-      code = get(error, 'networkError.result.errors[0].extensions.code', null);
+    if (error.graphQLErrors) {
+      [error] = error.graphQLErrors;
     }
 
-    return code;
+    return (_error = error) == null ? void 0 : (_error$extensions = _error.extensions) == null ? void 0 : _error$extensions.code;
   }
 
   function getSubdomain(hostname) {
@@ -1008,6 +1059,10 @@
         this.web = !!(window && window.location && window.history);
       }
 
+      if (this.web) {
+        window.addEventListener('popstate', this._onPopState.bind(this));
+      }
+
       const {
         routes,
         redirects
@@ -1017,58 +1072,83 @@
         redirects
       });
       this.router.onGo(this._onGo.bind(this));
-      let url = '/';
-
-      if (this.web) {
-        const {
-          location
-        } = window;
-        const {
-          pathname,
-          search
-        } = location;
-        url = `${pathname}${search}`;
-        window.addEventListener('popstate', this._onPopState.bind(this));
-      }
-
       this.logger = logger.child({
         name: 'Router',
         web: this.web
       });
       this.logger.debug('Initializing router');
       return {
-        url
+        match: null,
+        error: null,
+        input: null
       };
     }
 
     get url() {
-      return this.state.url;
+      var _this$match;
+
+      return (_this$match = this.match) == null ? void 0 : _this$match.url;
     }
 
     get error() {
       return this.state.error;
     }
 
-    match(input) {
-      this.input = input;
+    get match() {
+      return this.state.match;
+    }
+
+    get route() {
+      var _this$match2;
+
+      return (_this$match2 = this.match) == null ? void 0 : _this$match2.route;
+    }
+
+    get params() {
+      var _this$match3;
+
+      return (_this$match3 = this.match) == null ? void 0 : _this$match3.params;
+    }
+
+    get page() {
+      var _this$route;
+
+      return (_this$route = this.route) == null ? void 0 : _this$route.page;
+    }
+
+    get input() {
+      return this.state.input;
+    }
+
+    start(_ref) {
+      let {
+        url
+      } = _ref,
+          input = _objectWithoutPropertiesLoose(_ref, ["url"]);
+
+      if (!url) {
+        url = '/';
+
+        if (this.web) {
+          const {
+            location
+          } = window;
+          const {
+            pathname,
+            search
+          } = location;
+          url = `${pathname}${search}`;
+        }
+      }
+
       const match = this.router.match(_extends({}, input, {
-        url: this.url
+        url
       }));
-      this.logger.debug('Router match', {
+
+      this._handleMatch({
         match,
         input
       });
-
-      if (match) {
-        if (match.redirect) {
-          this._setUrl(match.url);
-        }
-      } else {
-        const error = new Error('Router could not match url');
-        this.setState({
-          error
-        });
-      }
 
       return match;
     }
@@ -1077,63 +1157,112 @@
       args = _extends({}, this.input, this.router._normalizeInput(args));
       this.logger.debug('Router go called', {
         args,
-        url: this.url
+        current: this.url
       });
       this.router.go(args);
     }
 
     back() {
-      const last = this.history.pop();
+      const state = this.history.pop();
 
-      if (!last) {
+      if (!state) {
         return;
       }
 
-      this.go(last);
+      if (this.web) {
+        window.history.back();
+      } else {
+        this._onPopState({
+          state
+        });
+      }
     }
 
-    _setUrl(url) {
-      this.logger.debug('Setting router url', url);
+    _handleMatch({
+      match,
+      input
+    }) {
+      this.logger.debug('Router handling match', {
+        match,
+        input
+      });
 
-      if (url !== this.url) {
-        const state = {
-          url
-        };
-        this.setState(state);
-        this.history.push(state);
+      if (match) {
+        if (match.url !== this.url) {
+          const state = {
+            url: match.url
+          };
+          this.history.push(state);
 
-        if (this.web) {
-          window.history.pushState(state, '', url);
+          if (this.web) {
+            window.history.pushState(state, '', match.url);
+          }
+
+          this.setState({
+            match,
+            input,
+            error: null
+          });
         }
+      } else {
+        const error = new Error('No match from router');
+        this.setState({
+          match,
+          input,
+          error
+        });
       }
     }
 
     _onGo(match) {
       this.logger.debug('Router onGo called', {
-        match,
-        current: this.url
+        match
       });
       const {
-        url
-      } = match;
+        input
+      } = this;
 
-      if (url !== this.url) {
-        this._setUrl(url);
+      this._handleMatch({
+        match,
+        input
+      });
 
-        const {
-          onGo
-        } = this.options;
+      const {
+        onGo
+      } = this.options;
 
-        if (onGo) {
-          onGo(match);
-        }
+      if (onGo) {
+        onGo(this.state);
       }
     }
 
     _onPopState({
       state
     }) {
-      this.setState(state);
+      const {
+        url
+      } = state;
+      const {
+        input
+      } = this;
+      const match = this.router.match(_extends({}, input, {
+        url
+      }));
+
+      if (match) {
+        this.setState({
+          match,
+          input,
+          error: null
+        });
+      } else {
+        const error = new Error('No match from router');
+        this.setState({
+          match,
+          input,
+          error
+        });
+      }
     }
 
   }

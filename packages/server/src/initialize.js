@@ -4,7 +4,6 @@ export default function initialize (options) {
   const {namespace} = options;
   const required = [
     'Admin',
-    'app',
     'Enums',
     'getCollection',
     'getService'

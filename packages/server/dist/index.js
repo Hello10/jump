@@ -6,8 +6,8 @@ var lodash = require('lodash');
 var Promise$1 = _interopDefault(require('bluebird'));
 var util = require('@hello10/util');
 var Logger = _interopDefault(require('@hello10/logger'));
-var graphqlTools = require('graphql-tools');
 var GraphQL = require('graphql');
+var graphqlTools = require('graphql-tools');
 var Express = _interopDefault(require('express'));
 var Cors = _interopDefault(require('cors'));
 
@@ -114,7 +114,7 @@ function initialize(options) {
   const {
     namespace
   } = options;
-  const required = ['Admin', 'app', 'Enums', 'getCollection', 'getService'];
+  const required = ['Admin', 'Enums', 'getCollection', 'getService'];
 
   for (const name of required) {
     if (!options[name]) {
@@ -298,8 +298,8 @@ class Collection {
   list({
     limit,
     sort,
-    start_at,
-    start_after
+    at,
+    after
   } = {}) {
     try {
       const _this5 = this;
@@ -307,8 +307,8 @@ class Collection {
       return Promise$1.resolve(_this5.find({
         limit,
         sort,
-        start_at,
-        start_after
+        at,
+        after
       }));
     } catch (e) {
       return Promise$1.reject(e);
@@ -429,7 +429,7 @@ class Collection {
   get loader() {
     const _this9 = this;
 
-    return new DataLoader(function (ids) {
+    const loader = new DataLoader(function (ids) {
       try {
         _this9.logger.debug({
           message: `calling DataLoader for ${_this9.name}`,
@@ -442,45 +442,28 @@ class Collection {
           const lookup = new Map();
 
           for (const doc of docs) {
-            lookup.set(doc.id, doc);
+            lookup.set(doc.id.toString(), doc);
           }
 
           return ids.map(id => {
-            return lookup.has(id) ? lookup.get(id) : null;
+            const id_s = id.toString();
+            return lookup.has(id_s) ? lookup.get(id_s) : null;
           });
         });
       } catch (e) {
         return Promise$1.reject(e);
       }
     });
-  }
 
-  load(id) {
-    if (!id) {
-      throw new Error('Missing id');
-    }
+    loader.loadManyCompact = function loadManyCompact(ids) {
+      try {
+        return Promise$1.resolve(loader.loadMany(ids)).then(lodash.compact);
+      } catch (e) {
+        return Promise$1.reject(e);
+      }
+    };
 
-    const loader = this.getLoader(this.name);
-    return loader.load(id);
-  }
-
-  loadMany(ids) {
-    if (!ids.length) {
-      return [];
-    }
-
-    const loader = this.getLoader(this.name);
-    return loader.loadMany(ids);
-  }
-
-  loadManyCompact(ids) {
-    try {
-      const _this10 = this;
-
-      return Promise$1.resolve(_this10.loadMany(ids)).then(lodash.compact);
-    } catch (e) {
-      return Promise$1.reject(e);
-    }
+    return loader;
   }
 
   _timestamp() {
@@ -688,8 +671,8 @@ class FirestoreCollection extends Collection {
     query,
     limit,
     sort,
-    start_at,
-    start_after,
+    at,
+    after,
     select
   } = {}) {
     try {
@@ -754,12 +737,12 @@ class FirestoreCollection extends Collection {
         cursor = cursor.orderBy(...sort);
       }
 
-      const start = start_after || start_at;
+      const start = after || at;
 
       const _temp = function () {
         if (start) {
           return Promise.resolve(_this5.doc(start).get()).then(function (doc) {
-            const fn = start_after ? 'startAfter' : 'startAt';
+            const fn = after ? 'startAfter' : 'startAt';
             cursor = cursor[fn](doc);
           });
         }
@@ -1016,9 +999,9 @@ function instanceGetter({
   };
 }
 
-function processOptions(input) {
+function addInstanceGetters(input) {
   logger.debug('Processing options', {
-    name: 'processOptions',
+    name: 'addInstanceGetters',
     input
   });
 
@@ -1082,7 +1065,7 @@ function contextBuilder(_ref) {
     try {
       const logger$1 = logger.child('contextBuilder');
       return Promise.resolve(start()).then(function () {
-        function _temp3() {
+        function _temp2() {
           return _extends({
             session_id,
             user_id,
@@ -1092,7 +1075,7 @@ function contextBuilder(_ref) {
           }, options);
         }
 
-        const options = processOptions(input_options);
+        const options = addInstanceGetters(input_options);
         const {
           getCollection
         } = options;
@@ -1113,37 +1096,32 @@ function contextBuilder(_ref) {
         let user_id = null;
         let user = null;
         let load_user_error = null;
-        logger$1.debug('Getting token');
-        const token = getToken$1(request);
 
-        const _temp2 = function () {
-          if (token) {
-            const _temp = _catch(function () {
-              logger$1.debug('Loading session');
-              return Promise.resolve(loadSession({
-                token,
-                getCollection
-              })).then(function (_loadSession) {
-                ({
-                  session_id,
-                  user_id,
-                  user
-                } = _loadSession);
-                logger$1.debug('Loaded session', {
-                  session_id,
-                  user
-                });
-              });
-            }, function (error) {
-              logger$1.error('Error loading session', error);
-              load_user_error = error;
+        const _temp = _catch(function () {
+          logger$1.debug('Getting token');
+          const token = getToken$1(request);
+          logger$1.debug('Loading session');
+          return Promise.resolve(loadSession({
+            token,
+            getCollection,
+            getLoader
+          })).then(function (session) {
+            ({
+              session_id,
+              user_id,
+              user
+            } = session);
+            logger$1.debug('Loaded session', {
+              session_id,
+              user
             });
+          });
+        }, function (error) {
+          logger$1.error('Error loading session', error);
+          load_user_error = error;
+        });
 
-            if (_temp && _temp.then) return _temp.then(function () {});
-          }
-        }();
-
-        return _temp2 && _temp2.then ? _temp2.then(_temp3) : _temp3(_temp2);
+        return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
       });
     } catch (e) {
       return Promise.reject(e);
@@ -1191,8 +1169,13 @@ function makeSchema({
   Schema,
   Controllers,
   Scalars,
-  options
+  options = {}
 }) {
+  logger.debug('Making schema', {
+    name: 'makeSchema',
+    options
+  });
+  options = addInstanceGetters(options);
   const resolvers = exposeResolvers({
     Controllers,
     Scalars,
@@ -1214,35 +1197,100 @@ function createGraphqlHandler({
     name: 'createGraphqlHandler',
     options
   });
-  logger$1.debug('Creating GraphQL handler');
   const {
     server: opts_server = {},
     handler: opts_handler = {},
     controller: opts_controller = {}
   } = options;
+  const schema = makeSchema({
+    options: opts_controller,
+    Schema,
+    Controllers,
+    Scalars
+  });
+  logger$1.debug('Creating ApolloServer', {
+    options: opts_server
+  });
 
   if (!opts_server.formatError) {
     opts_server.formatError = formatError;
   }
 
-  const processed_options = processOptions(opts_controller);
-  logger$1.debug('Making schema');
-  const schema = makeSchema({
-    options: processed_options,
-    Schema,
-    Controllers,
-    Scalars
-  });
-  logger$1.debug('Creating server', {
-    options: opts_server
-  });
   const server = new apolloServerCloudFunctions.ApolloServer(_extends({}, opts_server, {
     schema
   }));
-  logger$1.debug('Creating handler', {
+  logger$1.debug('Creating GraphQL handler', {
     options: opts_handler
   });
   return server.createHandler(opts_handler);
+}
+
+const directGraphqlRequest = function ({
+  schema,
+  context,
+  query,
+  variables
+}) {
+  try {
+    const rlogger = logger.child({
+      name: 'localGraphqlRequest',
+      query,
+      variables
+    });
+    rlogger.debug('Making request');
+    const root = {};
+    return Promise.resolve(GraphQL.graphql(schema, query, root, context, variables)).then(function (response) {
+      const {
+        data,
+        errors
+      } = response;
+
+      if (errors) {
+        const error = errors[0];
+        rlogger.error(error);
+        throw error;
+      } else {
+        rlogger.debug('Got response', {
+          data
+        });
+        return data;
+      }
+    });
+  } catch (e) {
+    return Promise.reject(e);
+  }
+};
+
+function directGraphqlRequester({
+  Schema,
+  Controllers,
+  Scalars,
+  options,
+  buildContext
+}) {
+  const schema = makeSchema({
+    Schema,
+    Controllers,
+    Scalars,
+    options
+  });
+  return function request({
+    query,
+    variables
+  }) {
+    try {
+      return Promise.resolve(buildContext()).then(function (context) {
+        return directGraphqlRequest({
+          schema,
+          context,
+          query,
+          variables
+        });
+      });
+    } catch (e) {
+      return Promise.reject(e);
+    }
+  };
 }
 
 function _catch$1(body, recover) {
@@ -1267,10 +1315,13 @@ const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
 class GraphQLController {
   constructor(options) {
     this.exists = this._toCollection('exists');
-    this.get = this._toCollection('get');
     this.list = this._toCollection('list');
     this.create = this._wrapToCollection('create');
     this.update = this._wrapToCollection('update');
+    this.get = this.load({
+      collection: this.name,
+      path: 'args.id'
+    });
 
     if (options) {
       initialize.call(this, _extends({
@@ -1287,8 +1338,8 @@ class GraphQLController {
     throw new Error('Child class must implement .resolvers');
   }
 
-  collection(name) {
-    return this.getCollection(name || this.name);
+  get collection() {
+    return this.getCollection(this.name);
   }
 
   expose() {
@@ -1397,39 +1448,30 @@ class GraphQLController {
 
   load({
     collection,
-    field
+    path
   }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
+    return request => {
+      const loader = request.context.getLoader(collection);
+      const id = lodash.get(request, path);
       return id ? loader.load(id) : null;
     };
   }
 
   loadMany({
     collection,
-    field
+    path
   }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
+    return request => {
+      const loader = request.context.getLoader(collection);
+      const ids = lodash.get(request, path);
       return ids.length ? loader.loadMany(ids) : [];
     };
   }
 
   resolveType(getType) {
-    return ({
-      obj,
-      info
-    }) => {
-      const type = getType(obj);
-      return info.schema.getType(type);
+    return request => {
+      const type = getType(request);
+      return request.info.schema.getType(type);
     };
   }
 
@@ -1437,20 +1479,23 @@ class GraphQLController {
     throw new Error('Unimplemented stub');
   }
 
+  addSessionUserId(key) {
+    return ({
+      data,
+      context
+    }) => {
+      return _extends({}, data, {
+        [key]: context.user.id
+      });
+    };
+  }
+
   delete(request) {
     try {
       const _this2 = this;
 
       function _temp4() {
-        const {
-          id
-        } = request.args;
-
-        const collection = _this2.collection();
-
-        return Promise.resolve(collection.delete({
-          id
-        })).then(function (deleted) {
+        return Promise.resolve(_this2.collection.delete(request.args)).then(function (deleted) {
           function _temp2() {
             return {
               deleted_at,
@@ -1487,8 +1532,7 @@ class GraphQLController {
 
   _toCollection(method) {
     return request => {
-      const collection = this.collection();
-      return collection[method](request.args);
+      return this.collection[method](request.args);
     };
   }
 
@@ -1501,7 +1545,9 @@ class GraphQLController {
     return function (request) {
       try {
         function _temp7() {
-          return Promise.resolve(collection[method](args)).then(function (doc) {
+          return Promise.resolve(_this3.collection[method](_extends({}, args, {
+            data
+          }))).then(function (doc) {
             const _temp5 = function () {
               if (_this3[after]) {
                 return Promise.resolve(_this3[after](_extends({}, request, {
@@ -1522,16 +1568,15 @@ class GraphQLController {
         const {
           args
         } = request;
-
-        const collection = _this3.collection();
-
         let {
           data
         } = args;
 
         const _temp6 = function () {
           if (_this3[before]) {
-            return Promise.resolve(_this3[before](request)).then(function (_this3$before) {
+            return Promise.resolve(_this3[before](_extends({}, request, {
+              data
+            }))).then(function (_this3$before) {
               data = _this3$before;
             });
           }
@@ -1680,7 +1725,7 @@ function createHttpHandler({
   const app = Express();
   const cors = Cors(options.cors);
   app.use(cors);
-  options = processOptions(options.handler);
+  options = addInstanceGetters(options.handler);
   logger.debug('Creating HTTP Handler', {
     name: 'createHttpHandler',
     options,
@@ -1812,7 +1857,7 @@ function createPubSubHandler({
   Handler,
   options
 }) {
-  options = processOptions(options.handler);
+  options = addInstanceGetters(options.handler);
   logger.debug('Creating PubSub Handler', {
     name: 'createPubSubHandler',
     options,
@@ -1866,6 +1911,7 @@ class PubSubHandler extends Handler {
 
     return function (message, context) {
       try {
+        console.log('calling pubsub start...');
         return Promise.resolve(_this.start()).then(function () {
           const {
             json,
@@ -1905,42 +1951,6 @@ class PubSubHandler extends Handler {
 
 }
 
-const directGraphqlRequest = function ({
-  Schema,
-  context,
-  query,
-  variables
-}) {
-  try {
-    const rlogger = logger.child({
-      name: 'localGraphqlRequest',
-      query,
-      variables
-    });
-    rlogger.debug('Making request');
-    const root = {};
-    return Promise.resolve(GraphQL.graphql(Schema, query, root, context, variables)).then(function (response) {
-      const {
-        data,
-        errors
-      } = response;
-
-      if (errors) {
-        const error = errors[0];
-        rlogger.error(error);
-        throw error;
-      } else {
-        rlogger.debug('Got response', {
-          data
-        });
-        return data;
-      }
-    });
-  } catch (e) {
-    return Promise.reject(e);
-  }
-};
-
 exports.Authorizers = Authorizers;
 exports.Collection = Collection;
 exports.DoesNotExistError = DoesNotExistError;
@@ -1948,13 +1958,17 @@ exports.Errors = Errors;
 exports.FirestoreCollection = FirestoreCollection;
 exports.GraphQLController = GraphQLController;
 exports.GraphQLError = GraphQLError;
+exports.Handler = Handler;
 exports.HttpHandler = HttpHandler;
 exports.NotAuthorizedError = NotAuthorizedError;
 exports.PubSubHandler = PubSubHandler;
+exports.addInstanceGetters = addInstanceGetters;
 exports.contextBuilder = contextBuilder;
 exports.createGraphqlHandler = createGraphqlHandler;
 exports.createHttpHandler = createHttpHandler;
 exports.createPubSubHandler = createPubSubHandler;
 exports.directGraphqlRequest = directGraphqlRequest;
+exports.directGraphqlRequester = directGraphqlRequester;
+exports.makeSchema = makeSchema;
 exports.processSchema = processSchema;
 //# sourceMappingURL=index.js.map

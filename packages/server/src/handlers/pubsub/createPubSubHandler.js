@@ -1,8 +1,8 @@
 import logger from '../../logger';
-import processOptions from '../processOptions';
+import addInstanceGetters from '../addInstanceGetters';
 
 export default function createPubSubHandler ({Handler, options}) {
-  options = processOptions(options.handler);
+  options = addInstanceGetters(options.handler);
 
   logger.debug('Creating PubSub Handler', {
     name: 'createPubSubHandler',

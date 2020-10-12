@@ -2,14 +2,14 @@ import Express from 'express';
 import Cors from 'cors';
 
 import logger from '../../logger';
-import processOptions from '../processOptions';
+import addInstanceGetters from '../addInstanceGetters';
 
 export default function createHttpHandler ({Handler, options}) {
   const app = Express();
   const cors = Cors(options.cors);
   app.use(cors);
 
-  options = processOptions(options.handler);
+  options = addInstanceGetters(options.handler);
 
   logger.debug('Creating HTTP Handler', {
     name: 'createHttpHandler',

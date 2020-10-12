@@ -93,7 +93,7 @@ export default class FirestoreCollection extends Collection {
     }
   }
 
-  async find ({query, limit, sort, start_at, start_after, select} = {}) {
+  async find ({query, limit, sort, at, after, select} = {}) {
     let cursor = this.collection;
 
     function invalid (field) {
@@ -128,10 +128,10 @@ export default class FirestoreCollection extends Collection {
       cursor = cursor.orderBy(...sort);
     }
 
-    const start = start_after || start_at;
+    const start = after || at;
     if (start) {
       const doc = await this.doc(start).get();
-      const fn = start_after ? 'startAfter' : 'startAt';
+      const fn = after ? 'startAfter' : 'startAt';
       cursor = cursor[fn](doc);
     }
 

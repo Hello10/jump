@@ -1,5 +1,5 @@
 import base_logger from '../../logger';
-import processOptions from '../processOptions';
+import addInstanceGetters from '../addInstanceGetters';
 import getTokenDefault from './getToken';
 
 export default function contextBuilder ({
@@ -14,7 +14,7 @@ export default function contextBuilder ({
 
     await start();
 
-    const options = processOptions(input_options);
+    const options = addInstanceGetters(input_options);
     const {getCollection} = options;
 
     const loaders = {};
@@ -32,17 +32,16 @@ export default function contextBuilder ({
     let user = null;
     let load_user_error = null;
 
-    logger.debug('Getting token');
-    const token = getToken(request);
-    if (token) {
-      try {
-        logger.debug('Loading session');
-        ({session_id, user_id, user} = await loadSession({token, getCollection}));
-        logger.debug('Loaded session', {session_id, user});
-      } catch (error) {
-        logger.error('Error loading session', error);
-        load_user_error = error;
-      }
+    try {
+      logger.debug('Getting token');
+      const token = getToken(request);
+      logger.debug('Loading session');
+      const session = await loadSession({token, getCollection, getLoader});
+      ({session_id, user_id, user} = session);
+      logger.debug('Loaded session', {session_id, user});
+    } catch (error) {
+      logger.error('Error loading session', error);
+      load_user_error = error;
     }
 
     return {

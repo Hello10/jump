@@ -1,123 +1,104 @@
 import 'babel-polyfill';
 import { useSingleton } from '@hello10/react-hooks';
 export * from '@hello10/react-hooks';
-import React__default, { useState, useEffect, createElement } from 'react';
-import PropTypes from 'prop-types';
+import React__default, { createElement, useEffect } from 'react';
+import { useQuery, HttpLink, from, InMemoryCache, ApolloClient } from '@apollo/client';
 import Logger from '@hello10/logger';
-import gql from 'graphql-tag';
-import { ApolloClient } from 'apollo-client';
-import { setContext } from 'apollo-link-context';
-import { createHttpLink } from 'apollo-link-http';
-import { InMemoryCache } from 'apollo-cache-inmemory';
-import get from 'lodash.get';
+import PropTypes from 'prop-types';
+import { setContext } from '@apollo/client/link/context';
 import Groutcho from 'groutcho';
 
 const logger = new Logger('jump');
+
+const logger$1 = logger.child('PageContainer');
+
+function Query({
+  Loading,
+  Error,
+  Page,
+  ...page_props
+}) {
+  const {
+    name,
+    params,
+    user
+  } = page_props;
+  const {
+    query: query_gql,
+    ...options
+  } = Page.query({
+    params,
+    user
+  });
+  const query = useQuery(query_gql, options);
+  const {
+    loading,
+    error,
+    data
+  } = query;
+  logger$1.debug('Rendering page container query', { ...page_props,
+    loading,
+    error,
+    data
+  });
+
+  if (loading) {
+    logger$1.debug(`Rendering loading for ${name}`);
+    return /*#__PURE__*/createElement(Loading, Object.assign({
+      Page: Page,
+      query: query
+    }, page_props));
+  } else if (error) {
+    logger$1.debug(`Rendering error for ${name}`);
+    return /*#__PURE__*/createElement(Error, Object.assign({
+      Page: Page,
+      error: error,
+      query: query
+    }, page_props));
+  } else {
+    logger$1.debug(`Rendering loaded for ${name}`);
+    return /*#__PURE__*/createElement(Page, Object.assign({
+      data: data,
+      query: query
+    }, page_props));
+  }
+}
 
 function PageContainer({
   Loading,
   Error,
   match,
-  client
+  user
 }) {
   const {
-    params,
-    route
+    route,
+    params
   } = match;
   const {
     page: Page,
     name
   } = route;
-  const logger$1 = logger.child('PageContainer');
-  const [last_match, setLastMatch] = useState(match);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-
-  if (match !== last_match) {
-    logger$1.debug('Resetting for new page', {
-      last_match,
-      match
-    });
-    setLoading(true);
-    setError(null);
-    setData(null);
-    setLastMatch(match);
-  }
-
-  logger$1.debug('Rendering page container', {
-    match,
-    loading,
-    error,
-    data
-  });
-  useEffect(() => {
-    let unmounted = false;
-
-    async function runQuery() {
-      if (unmounted) {
-        logger$1.debug('Skip unmounted query');
-        return;
-      }
-
-      try {
-        const page_query = Page.query(params);
-        logger$1.debug('Running query', page_query);
-        const {
-          data
-        } = await client.query(page_query);
-        logger$1.debug('Ran query', data);
-        setData(data);
-      } catch (error) {
-        logger$1.error('Error running query', error);
-        setError(error);
-      } finally {
-        logger$1.debug('Done loading');
-        setLoading(false);
-      }
-    }
-
-    if (Page.query) {
-      runQuery();
-    } else {
-      setLoading(false);
-    }
-
-    return () => {
-      logger$1.debug('Unmounting page container');
-      unmounted = true;
-    };
-  }, [match]);
-  const props = {
-    Page,
+  const page_props = {
     match,
     route,
-    params
+    params,
+    user,
+    name
   };
 
-  if (loading) {
-    logger$1.debug(`Rendering loading for ${name}`);
-    return /*#__PURE__*/createElement(Loading, props);
-  } else if (error) {
-    logger$1.debug(`Rendering error for ${name}`);
-    return /*#__PURE__*/createElement(Error, Object.assign({
-      error: error
-    }, props));
+  if (Page.query) {
+    return /*#__PURE__*/createElement(Query, Object.assign({
+      Loading: Loading,
+      Error: Error,
+      Page: Page
+    }, page_props));
   } else {
-    logger$1.debug(`Rendering loaded for ${name}`);
     return /*#__PURE__*/createElement(Page, Object.assign({
-      match: match,
-      params: params,
-      route: route
-    }, data));
+      data: {},
+      query: null
+    }, page_props));
   }
 }
-PageContainer.propTypes = {
-  Loading: PropTypes.func,
-  Error: PropTypes.func,
-  match: PropTypes.object,
-  client: PropTypes.object
-};
 
 function ApplicationContainer({
   ApplicationLoading,
@@ -132,7 +113,6 @@ function ApplicationContainer({
   const logger$1 = logger.child('ApplicationContainer');
   logger$1.debug('Rendering ApplicationContainer');
   const router = useRouter();
-  const [match, setMatch] = useState(null);
   const session = useSession();
   const {
     user
@@ -154,40 +134,34 @@ function ApplicationContainer({
       return;
     }
 
-    const match = router.match({
+    const match = router.start({
       user
     });
 
-    if (match) {
+    if (match?.redirect) {
       const {
-        route,
-        redirect
+        route
       } = match;
+      let msg = 'Got redirect';
+      const name = route?.name;
 
-      if (redirect) {
-        let msg = 'Got redirect';
-        const name = route?.name;
-
-        if (name) {
-          msg = `${msg} to ${name}`;
-        }
-
-        logger$1.info(msg, {
-          match
-        });
+      if (name) {
+        msg = `${msg} to ${name}`;
       }
 
-      setMatch(match);
+      logger$1.info(msg, {
+        match
+      });
     }
-  }, [user, router.url]);
+  }, [user]);
 
-  if (session.loaded && match) {
+  if (session.loaded && router.match) {
     return /*#__PURE__*/React__default.createElement(Container, {
-      match: match
+      match: router.match
     }, /*#__PURE__*/React__default.createElement(PageContainer, Object.assign({
       Loading: PageLoading,
       Error: PageError,
-      match: match,
+      match: router.match,
       client: client
     }, props)));
   } else {
@@ -210,9 +184,118 @@ ApplicationContainer.propTypes = {
   useSession: PropTypes.func
 };
 
+function buildEnum(types) {
+  return types.reduce((Types, type) => {
+    Types[type] = type;
+    return Types;
+  }, {});
+}
+
+const types = buildEnum(['array', 'first', 'last']);
+
+function indexer(arg) {
+  if (!arg) {
+    arg = {
+      attr: 'id',
+      type: types.first
+    };
+  }
+
+  if (arg.constructor === String) {
+    arg = {
+      attr: arg
+    };
+  }
+
+  const {
+    attr,
+    type = types.array
+  } = arg;
+
+  if (!(type in types)) {
+    throw new Error('Invalid index type');
+  }
+
+  return function index(items) {
+    const index = {};
+
+    for (const item of items) {
+      const value = item[attr];
+      const has_value = (value in index);
+
+      if (type === types.array) {
+        if (!has_value) {
+          index[value] = [];
+        }
+
+        index[value].push(item);
+      } else if (type === types.first) {
+        if (!has_value) {
+          index[value] = item;
+        }
+      } else {
+        index[value] = item;
+      }
+    }
+
+    return index;
+  };
+}
+
+for (const [k, v] of Object.entries(types)) {
+  indexer[k] = v;
+}
+
+const indexById = indexer();
+
+const mapp = function (iterable, map, options = {}) {
+  try {
+    let concurrency = options.concurrency || Infinity;
+    let index = 0;
+    const results = [];
+    const runs = [];
+    const iterator = iterable[Symbol.iterator]();
+    const sentinel = Symbol('sentinel');
+
+    function run() {
+      const {
+        done,
+        value
+      } = iterator.next();
+
+      if (done) {
+        return sentinel;
+      } else {
+        const i = index++;
+        const p = map(value, i);
+        return Promise.resolve(p).then(result => {
+          results[i] = result;
+          return run();
+        });
+      }
+    }
+
+    while (concurrency-- > 0) {
+      const r = run();
+
+      if (r === sentinel) {
+        break;
+      } else {
+        runs.push(r);
+      }
+    }
+
+    return Promise.all(runs).then(() => results);
+  } catch (e) {
+    return Promise.reject(e);
+  }
+};
+var mapp_1 = mapp;
+
 class Session extends useSingleton.Singleton {
   initialize() {
     const {
+      Firebase,
       SessionUser,
       client,
       shouldEndSessionOnError = () => {
@@ -221,6 +304,7 @@ class Session extends useSingleton.Singleton {
     } = this.options;
     SessionUser.client = client;
     const user = new SessionUser();
+    this.Firebase = Firebase;
     this.SessionUser = SessionUser;
     this.client = client;
     this.shouldEndSessionOnError = shouldEndSessionOnError;
@@ -240,6 +324,13 @@ class Session extends useSingleton.Singleton {
     return this.state.user;
   }
 
+  set user(data) {
+    const user = new this.SessionUser(data);
+    this.setState({
+      user
+    });
+  }
+
   get changing() {
     return this.state.changing;
   }
@@ -254,6 +345,10 @@ class Session extends useSingleton.Singleton {
 
   get load_error() {
     return this.loaded ? null : this.error;
+  }
+
+  apps(fn) {
+    return mapp_1(this.Firebase.apps, fn);
   }
 
   async load() {
@@ -292,6 +387,17 @@ class Session extends useSingleton.Singleton {
       });
 
       await _this2.client.setAuth(auth);
+      await _this2.apps(app => {
+        const app_token = auth.app_tokens.find(({
+          name
+        }) => name === app.name);
+
+        if (!app_token) {
+          return null;
+        }
+
+        return app.auth().signInWithCustomToken(app_token.token);
+      });
       return {
         user
       };
@@ -346,10 +452,13 @@ class Session extends useSingleton.Singleton {
 
         _this4.logger.debug('Session ended');
       } catch (error) {
-        _this4.logger.error('Error ending sesssion', error);
+        _this4.logger.error('Error ending session', error);
       }
 
       await _this4.client.clearAuth();
+      await _this4.apps(app => {
+        app.auth().signOut();
+      });
       const user = new SessionUser();
       return {
         user
@@ -397,11 +506,7 @@ class Session extends useSingleton.Singleton {
 
 class FirebaseSession extends Session {
   get auth() {
-    return this.options.auth;
-  }
-
-  get Firebase() {
-    return this.options.Firebase;
+    return this.Firebase.auth();
   }
 
   async load() {
@@ -415,8 +520,7 @@ class FirebaseSession extends Session {
       SessionUser,
       client
     } = this;
-    const auth = this.Firebase.auth();
-    this.unsubscribe = auth.onAuthStateChanged(async function (firebase_user) {
+    this.unsubscribe = this.auth.onAuthStateChanged(async function (firebase_user) {
       _this.logger.debug('Firebase auth state changed', {
         firebase_user
       });
@@ -533,32 +637,38 @@ class FirebaseSession extends Session {
 
 }
 
-let _ = t => t,
-    _t;
 const NO_SESSION = {
   token: null,
   refresh_token: null
 };
+let auth = null;
 function getClient({
   uri,
   storage,
-  storage_key = 'JUMP_AUTH'
+  storage_key = 'JUMP_AUTH',
+  options = {},
+  cache_options = {}
 }) {
   const logger$1 = logger.child({
     name: 'getClient',
     uri
   });
   logger$1.info('Getting client');
-  const http_link = createHttpLink({
+  const http_link = new HttpLink({
     uri
   });
   const auth_link = setContext(async (request, prev_context) => {
     const {
       headers = {}
     } = prev_context;
+
+    if (!auth) {
+      await loadAuth();
+    }
+
     const {
       token
-    } = await readClientAuth();
+    } = auth;
 
     if (token) {
       logger$1.debug('Adding auth token to header');
@@ -569,36 +679,13 @@ function getClient({
       headers
     };
   });
-  const link = auth_link.concat(http_link);
-  const cache = new InMemoryCache();
+  const link = from([auth_link, http_link]);
+  const cache = new InMemoryCache(cache_options);
   const client = new ApolloClient({
     link,
-    cache
+    cache,
+    defaultOptions: options
   });
-  writeClientAuth(NO_SESSION);
-
-  async function readClientAuth() {
-    logger$1.debug('Getting client auth');
-    const query = gql(_t || (_t = _`
-      {
-        token @client
-        refresh_token @client
-      }
-    `));
-    const {
-      data
-    } = await client.query({
-      query
-    });
-    return data;
-  }
-
-  function writeClientAuth(auth) {
-    logger$1.debug('Setting client auth');
-    return client.writeData({
-      data: auth
-    });
-  }
 
   function writeAuthToStorage(auth) {
     logger$1.debug('Writing auth to storage');
@@ -612,22 +699,22 @@ function getClient({
 
     try {
       const json = await storage.getItem(storage_key);
-      auth = JSON.parse(json) || {};
+      auth = JSON.parse(json) || NO_SESSION;
     } catch (error) {
-      auth = {};
+      auth = NO_SESSION;
     }
 
     return auth;
   }
 
-  async function setAuth(auth) {
+  async function setAuth(new_auth) {
     logger$1.debug('Setting session auth');
 
     if (storage) {
-      await writeAuthToStorage(auth);
+      await writeAuthToStorage(new_auth);
     }
 
-    return writeClientAuth(auth);
+    auth = new_auth;
   }
 
   async function loadAuth() {
@@ -636,18 +723,13 @@ function getClient({
     }
 
     logger$1.debug('Loading session auth');
-    const auth = await readAuthFromStorage();
-    return writeClientAuth(auth);
+    auth = await readAuthFromStorage();
+    return auth;
   }
 
   async function clearAuth() {
     logger$1.debug('Clearing session auth');
-
-    if (storage) {
-      await writeAuthToStorage(NO_SESSION);
-    }
-
-    return writeClientAuth(NO_SESSION);
+    setAuth(NO_SESSION);
   }
 
   client.setAuth = setAuth;
@@ -657,13 +739,11 @@ function getClient({
 }
 
 function getGraphQLErrorCode(error) {
-  let code = get(error, 'graphQLErrors[0].extensions.code', null);
-
-  if (!code) {
-    code = get(error, 'networkError.result.errors[0].extensions.code', null);
+  if (error.graphQLErrors) {
+    [error] = error.graphQLErrors;
   }
 
-  return code;
+  return error?.extensions?.code;
 }
 
 function getSubdomain(hostname) {
@@ -718,6 +798,10 @@ class Router extends useSingleton.Singleton {
       this.web = !!(window && window.location && window.history);
     }
 
+    if (this.web) {
+      window.addEventListener('popstate', this._onPopState.bind(this));
+    }
+
     const {
       routes,
       redirects
@@ -727,58 +811,73 @@ class Router extends useSingleton.Singleton {
       redirects
     });
     this.router.onGo(this._onGo.bind(this));
-    let url = '/';
-
-    if (this.web) {
-      const {
-        location
-      } = window;
-      const {
-        pathname,
-        search
-      } = location;
-      url = `${pathname}${search}`;
-      window.addEventListener('popstate', this._onPopState.bind(this));
-    }
-
     this.logger = logger.child({
       name: 'Router',
       web: this.web
     });
     this.logger.debug('Initializing router');
     return {
-      url
+      match: null,
+      error: null,
+      input: null
     };
   }
 
   get url() {
-    return this.state.url;
+    return this.match?.url;
   }
 
   get error() {
     return this.state.error;
   }
 
-  match(input) {
-    this.input = input;
+  get match() {
+    return this.state.match;
+  }
+
+  get route() {
+    return this.match?.route;
+  }
+
+  get params() {
+    return this.match?.params;
+  }
+
+  get page() {
+    return this.route?.page;
+  }
+
+  get input() {
+    return this.state.input;
+  }
+
+  start({
+    url,
+    ...input
+  }) {
+    if (!url) {
+      url = '/';
+
+      if (this.web) {
+        const {
+          location
+        } = window;
+        const {
+          pathname,
+          search
+        } = location;
+        url = `${pathname}${search}`;
+      }
+    }
+
     const match = this.router.match({ ...input,
-      url: this.url
+      url
     });
-    this.logger.debug('Router match', {
+
+    this._handleMatch({
       match,
       input
     });
-
-    if (match) {
-      if (match.redirect) {
-        this._setUrl(match.url);
-      }
-    } else {
-      const error = new Error('Router could not match url');
-      this.setState({
-        error
-      });
-    }
 
     return match;
   }
@@ -789,63 +888,112 @@ class Router extends useSingleton.Singleton {
     };
     this.logger.debug('Router go called', {
       args,
-      url: this.url
+      current: this.url
     });
     this.router.go(args);
   }
 
   back() {
-    const last = this.history.pop();
+    const state = this.history.pop();
 
-    if (!last) {
+    if (!state) {
       return;
     }
 
-    this.go(last);
+    if (this.web) {
+      window.history.back();
+    } else {
+      this._onPopState({
+        state
+      });
+    }
   }
 
-  _setUrl(url) {
-    this.logger.debug('Setting router url', url);
+  _handleMatch({
+    match,
+    input
+  }) {
+    this.logger.debug('Router handling match', {
+      match,
+      input
+    });
 
-    if (url !== this.url) {
-      const state = {
-        url
-      };
-      this.setState(state);
-      this.history.push(state);
+    if (match) {
+      if (match.url !== this.url) {
+        const state = {
+          url: match.url
+        };
+        this.history.push(state);
 
-      if (this.web) {
-        window.history.pushState(state, '', url);
+        if (this.web) {
+          window.history.pushState(state, '', match.url);
+        }
+
+        this.setState({
+          match,
+          input,
+          error: null
+        });
       }
+    } else {
+      const error = new Error('No match from router');
+      this.setState({
+        match,
+        input,
+        error
+      });
     }
   }
 
   _onGo(match) {
     this.logger.debug('Router onGo called', {
-      match,
-      current: this.url
+      match
     });
     const {
-      url
-    } = match;
+      input
+    } = this;
 
-    if (url !== this.url) {
-      this._setUrl(url);
+    this._handleMatch({
+      match,
+      input
+    });
 
-      const {
-        onGo
-      } = this.options;
+    const {
+      onGo
+    } = this.options;
 
-      if (onGo) {
-        onGo(match);
-      }
+    if (onGo) {
+      onGo(this.state);
     }
   }
 
   _onPopState({
     state
   }) {
-    this.setState(state);
+    const {
+      url
+    } = state;
+    const {
+      input
+    } = this;
+    const match = this.router.match({ ...input,
+      url
+    });
+
+    if (match) {
+      this.setState({
+        match,
+        input,
+        error: null
+      });
+    } else {
+      const error = new Error('No match from router');
+      this.setState({
+        match,
+        input,
+        error
+      });
+    }
   }
 
 }

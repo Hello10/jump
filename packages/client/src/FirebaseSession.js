@@ -2,11 +2,7 @@ import Session from './Session';
 
 export default class FirebaseSession extends Session {
   get auth () {
-    return this.options.auth;
-  }
-
-  get Firebase () {
-    return this.options.Firebase;
+    return this.Firebase.auth();
   }
 
   async load () {
@@ -15,8 +11,7 @@ export default class FirebaseSession extends Session {
     this.setState({changing: true});
 
     const {SessionUser, client} = this;
-    const auth = this.Firebase.auth();
-    this.unsubscribe = auth.onAuthStateChanged(async (firebase_user)=> {
+    this.unsubscribe = this.auth.onAuthStateChanged(async (firebase_user)=> {
       this.logger.debug('Firebase auth state changed', {firebase_user});
       await this._change(async ()=> {
         let user;

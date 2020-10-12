@@ -1,4 +1,4 @@
-import {isFunction} from 'lodash';
+import {isFunction, get} from 'lodash';
 
 import initialize from '../../initialize';
 import {
@@ -58,8 +58,8 @@ export default class GraphQLController {
     throw new Error('Child class must implement .resolvers');
   }
 
-  collection (name) {
-    return this.getCollection(name || this.name);
+  get collection () {
+    return this.getCollection(this.name);
   }
 
   expose () {
@@ -148,26 +148,26 @@ export default class GraphQLController {
     return result;
   }
 
-  load ({collection, field}) {
-    return ({obj, context})=> {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
+  load ({collection, path}) {
+    return (request)=> {
+      const loader = request.context.getLoader(collection);
+      const id = get(request, path);
       return id ? loader.load(id) : null;
     };
   }
 
-  loadMany ({collection, field}) {
-    return ({obj, context})=> {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
+  loadMany ({collection, path}) {
+    return (request)=> {
+      const loader = request.context.getLoader(collection);
+      const ids = get(request, path);
       return ids.length ? loader.loadMany(ids) : [];
     };
   }
 
   resolveType (getType) {
-    return ({obj, info})=> {
-      const type = getType(obj);
-      return info.schema.getType(type);
+    return (request)=> {
+      const type = getType(request);
+      return request.info.schema.getType(type);
     };
   }
 
@@ -175,24 +175,35 @@ export default class GraphQLController {
     throw new Error('Unimplemented stub');
   }
 
+  addSessionUserId (key) {
+    return ({data, context})=> {
+      return {
+        ...data,
+        [key]: context.user.id
+      };
+    };
+  }
+
   ///////////////////////
   // Generic Resolvers //
   ///////////////////////
 
   exists = this._toCollection('exists');
-  get    = this._toCollection('get');
   list   = this._toCollection('list');
-  create = this._wrapToCollection('create')
+  create = this._wrapToCollection('create');
   update = this._wrapToCollection('update');
+
+  get = this.load({
+    collection: this.name,
+    path: 'args.id'
+  });
 
   async delete (request) {
     if (this.beforeDelete) {
       await this.beforeDelete(request);
     }
 
-    const {id} = request.args;
-    const collection = this.collection();
-    const deleted = await collection.delete({id});
+    const deleted = await this.collection.delete(request.args);
     const deleted_at = new Date();
 
     if (this.afterDelete) {
@@ -204,8 +215,7 @@ export default class GraphQLController {
 
   _toCollection (method) {
     return (request)=> {
-      const collection = this.collection();
-      return collection[method](request.args);
+      return this.collection[method](request.args);
     };
   }
 
@@ -216,14 +226,13 @@ export default class GraphQLController {
 
     return async (request)=> {
       const {args} = request;
-      const collection = this.collection();
 
       let {data} = args;
       if (this[before]) {
-        data = await this[before](request);
+        data = await this[before]({...request, data});
       }
 
-      let doc = await collection[method](args);
+      let doc = await this.collection[method]({...args, data});
       if (this[after]) {
         doc = await this[after]({...request, data, doc});
       }

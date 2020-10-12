@@ -13,17 +13,13 @@ export default class Router extends useSingleton.Singleton {
       this.web = !!(window && window.location && window.history);
     }
 
+    if (this.web) {
+      window.addEventListener('popstate', this._onPopState.bind(this));
+    }
+
     const {routes, redirects} = this.options;
     this.router = new Groutcho.Router({routes, redirects});
     this.router.onGo(this._onGo.bind(this));
-
-    let url = '/';
-    if (this.web) {
-      const {location} = window;
-      const {pathname, search} = location;
-      url = `${pathname}${search}`;
-      window.addEventListener('popstate', this._onPopState.bind(this));
-    }
 
     this.logger = logger.child({
       name: 'Router',
@@ -32,32 +28,52 @@ export default class Router extends useSingleton.Singleton {
 
     this.logger.debug('Initializing router');
 
-    return {url};
+    return {
+      match: null,
+      error: null,
+      input: null
+    };
   }
 
   get url () {
-    return this.state.url;
+    return this.match?.url;
   }
 
   get error () {
     return this.state.error;
   }
 
-  match (input) {
-    this.input = input;
-    const match = this.router.match({
-      ...input,
-      url: this.url
-    });
-    this.logger.debug('Router match', {match, input});
-    if (match) {
-      if (match.redirect) {
-        this._setUrl(match.url);
+  get match () {
+    return this.state.match;
+  }
+
+  get route () {
+    return this.match?.route;
+  }
+
+  get params () {
+    return this.match?.params;
+  }
+
+  get page () {
+    return this.route?.page;
+  }
+
+  get input () {
+    return this.state.input;
+  }
+
+  start ({url, ...input}) {
+    if (!url) {
+      url = '/';
+      if (this.web) {
+        const {location} = window;
+        const {pathname, search} = location;
+        url = `${pathname}${search}`;
       }
-    } else {
-      const error = new Error('Router could not match url');
-      this.setState({error});
     }
+    const match = this.router.match({...input, url});
+    this._handleMatch({match, input});
     return match;
   }
 
@@ -66,43 +82,58 @@ export default class Router extends useSingleton.Singleton {
       ...this.input,
       ...this.router._normalizeInput(args)
     };
-    this.logger.debug('Router go called', {args, url: this.url});
+    this.logger.debug('Router go called', {args, current: this.url});
     this.router.go(args);
   }
 
   back () {
-    const last = this.history.pop();
-    if (!last) {
+    const state = this.history.pop();
+    if (!state) {
       return;
     }
-    this.go(last);
+    if (this.web) {
+      window.history.back();
+    } else {
+      this._onPopState({state});
+    }
   }
 
-  _setUrl (url) {
-    this.logger.debug('Setting router url', url);
-    if (url !== this.url) {
-      const state = {url};
-      this.setState(state);
-      this.history.push(state);
-      if (this.web) {
-        window.history.pushState(state, '', url);
+  _handleMatch ({match, input}) {
+    this.logger.debug('Router handling match', {match, input});
+    if (match) {
+      if (match.url !== this.url) {
+        const state = {url: match.url};
+        this.history.push(state);
+        if (this.web) {
+          window.history.pushState(state, '', match.url);
+        }
+        this.setState({match, input, error: null});
       }
+    } else {
+      const error = new Error('No match from router');
+      this.setState({match, input, error});
     }
   }
 
   _onGo (match) {
-    this.logger.debug('Router onGo called', {match, current: this.url});
-    const {url} = match;
-    if (url !== this.url) {
-      this._setUrl(url);
-      const {onGo} = this.options;
-      if (onGo) {
-        onGo(match);
-      }
+    this.logger.debug('Router onGo called', {match});
+    const {input} = this;
+    this._handleMatch({match, input});
+    const {onGo} = this.options;
+    if (onGo) {
+      onGo(this.state);
     }
   }
 
   _onPopState ({state}) {
-    this.setState(state);
+    const {url} = state;
+    const {input} = this;
+    const match = this.router.match({...input, url});
+    if (match) {
+      this.setState({match, input, error: null});
+    } else {
+      const error = new Error('No match from router');
+      this.setState({match, input, error});
+    }
   }
 }

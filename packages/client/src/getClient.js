@@ -1,8 +1,10 @@
-import gql from 'graphql-tag';
-import {ApolloClient} from 'apollo-client';
-import {setContext} from 'apollo-link-context';
-import {createHttpLink} from 'apollo-link-http';
-import {InMemoryCache} from 'apollo-cache-inmemory';
+import {
+  ApolloClient,
+  from,
+  HttpLink,
+  InMemoryCache
+} from '@apollo/client';
+import {setContext} from '@apollo/client/link/context';
 
 import base_logger from './logger';
 
@@ -11,16 +13,27 @@ const NO_SESSION = {
   refresh_token: null
 };
 
-export default function getClient ({uri, storage, storage_key = 'JUMP_AUTH'}) {
+let auth = null;
+
+export default function getClient ({
+  uri,
+  storage,
+  storage_key = 'JUMP_AUTH',
+  options = {},
+  cache_options = {}
+}) {
   const logger = base_logger.child({name: 'getClient', uri});
 
   logger.info('Getting client');
 
-  const http_link = createHttpLink({uri});
+  const http_link = new HttpLink({uri});
 
   const auth_link = setContext(async (request, prev_context)=> {
     const {headers = {}} = prev_context;
-    const {token} = await readClientAuth();
+    if (!auth) {
+      await loadAuth();
+    }
+    const {token} = auth;
     if (token) {
       logger.debug('Adding auth token to header');
       headers.authorization = token ? `Bearer ${token}` : '';
@@ -28,27 +41,9 @@ export default function getClient ({uri, storage, storage_key = 'JUMP_AUTH'}) {
     return {headers};
   });
 
-  const link = auth_link.concat(http_link);
-  const cache = new InMemoryCache();
-  const client = new ApolloClient({link, cache});
-  writeClientAuth(NO_SESSION);
-
-  async function readClientAuth () {
-    logger.debug('Getting client auth');
-    const query = gql`
-      {
-        token @client
-        refresh_token @client
-      }
-    `;
-    const {data} = await client.query({query});
-    return data;
-  }
-
-  function writeClientAuth (auth) {
-    logger.debug('Setting client auth');
-    return client.writeData({data: auth});
-  }
+  const link = from([auth_link, http_link]);
+  const cache = new InMemoryCache(cache_options);
+  const client = new ApolloClient({link, cache, defaultOptions: options});
 
   function writeAuthToStorage (auth) {
     logger.debug('Writing auth to storage');
@@ -61,19 +56,19 @@ export default function getClient ({uri, storage, storage_key = 'JUMP_AUTH'}) {
     let auth;
     try {
       const json = await storage.getItem(storage_key);
-      auth = JSON.parse(json) || {};
+      auth = JSON.parse(json) || NO_SESSION;
     } catch (error) {
-      auth = {};
+      auth = NO_SESSION;
     }
     return auth;
   }
 
-  async function setAuth (auth) {
+  async function setAuth (new_auth) {
     logger.debug('Setting session auth');
     if (storage) {
-      await writeAuthToStorage(auth);
+      await writeAuthToStorage(new_auth);
     }
-    return writeClientAuth(auth);
+    auth = new_auth;
   }
 
   async function loadAuth () {
@@ -81,16 +76,13 @@ export default function getClient ({uri, storage, storage_key = 'JUMP_AUTH'}) {
       throw new Error('No storage specified to load auth from');
     }
     logger.debug('Loading session auth');
-    const auth = await readAuthFromStorage();
-    return writeClientAuth(auth);
+    auth = await readAuthFromStorage();
+    return auth;
   }
 
   async function clearAuth () {
     logger.debug('Clearing session auth');
-    if (storage) {
-      await writeAuthToStorage(NO_SESSION);
-    }
-    return writeClientAuth(NO_SESSION);
+    setAuth(NO_SESSION);
   }
 
   client.setAuth = setAuth;

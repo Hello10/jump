@@ -17,6 +17,7 @@ export default class PubSubHandler extends Handler {
 
   handle (action) {
     return async (message, context)=> {
+      console.log('calling pubsub start...');
       await this.start();
 
       const {json, data, attributes} = message;

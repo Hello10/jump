@@ -1,14 +1,12 @@
-import emailRegex from 'email-regex';
-import phoneRegex from 'phone-regex';
+import isValidEmail from './isValidEmail';
+import isValidPhoneNumber from './isValidPhoneNumber';
 
 export default function determineAddressType (address) {
-  const email = emailRegex({exact: true});
-  if (email.test(address)) {
+  if (isValidEmail(address)) {
     return 'email';
   }
 
-  const phone = phoneRegex({exact: true});
-  if (phone.test(address)) {
+  if (isValidPhoneNumber(address)) {
     return 'phone';
   }
 

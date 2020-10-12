@@ -1,11 +1,11 @@
 import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
 import DataLoader from 'dataloader';
-import { compact, uniq, isObject, isNumber, omit, merge, isFunction, difference, get } from 'lodash';
+import { compact, uniq, isObject, isNumber, omit, merge, isFunction, get, difference } from 'lodash';
 import Promise from 'bluebird';
 import { singleton } from '@hello10/util';
 import Logger from '@hello10/logger';
-import { makeExecutableSchema } from 'graphql-tools';
 import { formatError as formatError$1, graphql } from 'graphql';
+import { makeExecutableSchema } from 'graphql-tools';
 import Express from 'express';
 import Cors from 'cors';
 
@@ -79,7 +79,7 @@ function initialize(options) {
   const {
     namespace
   } = options;
-  const required = ['Admin', 'app', 'Enums', 'getCollection', 'getService'];
+  const required = ['Admin', 'Enums', 'getCollection', 'getService'];
 
   for (const name of required) {
     if (!options[name]) {
@@ -236,14 +236,14 @@ class Collection {
   async list({
     limit,
     sort,
-    start_at,
-    start_after
+    at,
+    after
   } = {}) {
     return this.find({
       limit,
       sort,
-      start_at,
-      start_after
+      at,
+      after
     });
   }
 
@@ -341,7 +341,7 @@ class Collection {
   get loader() {
     var _this = this;
 
-    return new DataLoader(async function (ids) {
+    const loader = new DataLoader(async function (ids) {
       _this.logger.debug({
         message: `calling DataLoader for ${_this.name}`,
         ids
@@ -353,36 +353,21 @@ class Collection {
       const lookup = new Map();
 
       for (const doc of docs) {
-        lookup.set(doc.id, doc);
+        lookup.set(doc.id.toString(), doc);
       }
 
       return ids.map(id => {
-        return lookup.has(id) ? lookup.get(id) : null;
+        const id_s = id.toString();
+        return lookup.has(id_s) ? lookup.get(id_s) : null;
       });
     });
-  }
 
-  load(id) {
-    if (!id) {
-      throw new Error('Missing id');
-    }
+    loader.loadManyCompact = async function loadManyCompact(ids) {
+      const docs = await loader.loadMany(ids);
+      return compact(docs);
+    };
 
-    const loader = this.getLoader(this.name);
-    return loader.load(id);
-  }
-
-  loadMany(ids) {
-    if (!ids.length) {
-      return [];
-    }
-
-    const loader = this.getLoader(this.name);
-    return loader.loadMany(ids);
-  }
-
-  async loadManyCompact(ids) {
-    const docs = await this.loadMany(ids);
-    return compact(docs);
+    return loader;
   }
 
   _timestamp() {
@@ -560,8 +545,8 @@ class FirestoreCollection extends Collection {
     query,
     limit,
     sort,
-    start_at,
-    start_after,
+    at,
+    after,
     select
   } = {}) {
     let cursor = this.collection;
@@ -601,11 +586,11 @@ class FirestoreCollection extends Collection {
       cursor = cursor.orderBy(...sort);
     }
 
-    const start = start_after || start_at;
+    const start = after || at;
 
     if (start) {
       const doc = await this.doc(start).get();
-      const fn = start_after ? 'startAfter' : 'startAt';
+      const fn = after ? 'startAfter' : 'startAt';
       cursor = cursor[fn](doc);
     }
 
@@ -812,9 +797,9 @@ function instanceGetter({
   };
 }
 
-function processOptions(input) {
+function addInstanceGetters(input) {
   logger.debug('Processing options', {
-    name: 'processOptions',
+    name: 'addInstanceGetters',
     input
   });
   const {
@@ -859,7 +844,7 @@ function contextBuilder({
   } = {}) => {
     const logger$1 = logger.child('contextBuilder');
     await start();
-    const options = processOptions(input_options);
+    const options = addInstanceGetters(input_options);
     const {
       getCollection
     } = options;
@@ -880,28 +865,28 @@ function contextBuilder({
     let user_id = null;
     let user = null;
     let load_user_error = null;
-    logger$1.debug('Getting token');
-    const token = getToken$1(request);
 
-    if (token) {
-      try {
-        logger$1.debug('Loading session');
-        ({
-          session_id,
-          user_id,
-          user
-        } = await loadSession({
-          token,
-          getCollection
-        }));
-        logger$1.debug('Loaded session', {
-          session_id,
-          user
-        });
-      } catch (error) {
-        logger$1.error('Error loading session', error);
-        load_user_error = error;
-      }
+    try {
+      logger$1.debug('Getting token');
+      const token = getToken$1(request);
+      logger$1.debug('Loading session');
+      const session = await loadSession({
+        token,
+        getCollection,
+        getLoader
+      });
+      ({
+        session_id,
+        user_id,
+        user
+      } = session);
+      logger$1.debug('Loaded session', {
+        session_id,
+        user
+      });
+    } catch (error) {
+      logger$1.error('Error loading session', error);
+      load_user_error = error;
     }
 
     return {
@@ -955,8 +940,13 @@ function makeSchema({
   Schema,
   Controllers,
   Scalars,
-  options
+  options = {}
 }) {
+  logger.debug('Making schema', {
+    name: 'makeSchema',
+    options
+  });
+  options = addInstanceGetters(options);
   const resolvers = exposeResolvers({
     Controllers,
     Scalars,
@@ -978,35 +968,90 @@ function createGraphqlHandler({
     name: 'createGraphqlHandler',
     options
   });
-  logger$1.debug('Creating GraphQL handler');
   const {
     server: opts_server = {},
     handler: opts_handler = {},
     controller: opts_controller = {}
   } = options;
+  const schema = makeSchema({
+    options: opts_controller,
+    Schema,
+    Controllers,
+    Scalars
+  });
+  logger$1.debug('Creating ApolloServer', {
+    options: opts_server
+  });
 
   if (!opts_server.formatError) {
     opts_server.formatError = formatError;
   }
 
-  const processed_options = processOptions(opts_controller);
-  logger$1.debug('Making schema');
-  const schema = makeSchema({
-    options: processed_options,
-    Schema,
-    Controllers,
-    Scalars
-  });
-  logger$1.debug('Creating server', {
-    options: opts_server
-  });
   const server = new ApolloServer({ ...opts_server,
     schema
   });
-  logger$1.debug('Creating handler', {
+  logger$1.debug('Creating GraphQL handler', {
     options: opts_handler
   });
   return server.createHandler(opts_handler);
+}
+
+async function directGraphqlRequest({
+  schema,
+  context,
+  query,
+  variables
+}) {
+  const rlogger = logger.child({
+    name: 'localGraphqlRequest',
+    query,
+    variables
+  });
+  rlogger.debug('Making request');
+  const root = {};
+  const response = await graphql(schema, query, root, context, variables);
+  const {
+    data,
+    errors
+  } = response;
+
+  if (errors) {
+    const error = errors[0];
+    rlogger.error(error);
+    throw error;
+  } else {
+    rlogger.debug('Got response', {
+      data
+    });
+    return data;
+  }
+}
+
+function directGraphqlRequester({
+  Schema,
+  Controllers,
+  Scalars,
+  options,
+  buildContext
+}) {
+  const schema = makeSchema({
+    Schema,
+    Controllers,
+    Scalars,
+    options
+  });
+  return async function request({
+    query,
+    variables
+  }) {
+    const context = await buildContext();
+    return directGraphqlRequest({
+      schema,
+      context,
+      query,
+      variables
+    });
+  };
 }
 
 function capitalize(str) {
@@ -1017,10 +1062,13 @@ const APOLLO_UNION_RESOLVER_NAME = '__resolveType';
 class GraphQLController {
   constructor(options) {
     this.exists = this._toCollection('exists');
-    this.get = this._toCollection('get');
     this.list = this._toCollection('list');
     this.create = this._wrapToCollection('create');
     this.update = this._wrapToCollection('update');
+    this.get = this.load({
+      collection: this.name,
+      path: 'args.id'
+    });
 
     if (options) {
       initialize.call(this, {
@@ -1038,8 +1086,8 @@ class GraphQLController {
     throw new Error('Child class must implement .resolvers');
   }
 
-  collection(name) {
-    return this.getCollection(name || this.name);
+  get collection() {
+    return this.getCollection(this.name);
   }
 
   expose() {
@@ -1144,39 +1192,30 @@ class GraphQLController {
 
   load({
     collection,
-    field
+    path
   }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const id = obj[field];
+    return request => {
+      const loader = request.context.getLoader(collection);
+      const id = get(request, path);
       return id ? loader.load(id) : null;
     };
   }
 
   loadMany({
     collection,
-    field
+    path
   }) {
-    return ({
-      obj,
-      context
-    }) => {
-      const loader = context.getLoader(collection);
-      const ids = obj[field];
+    return request => {
+      const loader = request.context.getLoader(collection);
+      const ids = get(request, path);
       return ids.length ? loader.loadMany(ids) : [];
     };
   }
 
   resolveType(getType) {
-    return ({
-      obj,
-      info
-    }) => {
-      const type = getType(obj);
-      return info.schema.getType(type);
+    return request => {
+      const type = getType(request);
+      return request.info.schema.getType(type);
     };
   }
 
@@ -1184,18 +1223,23 @@ class GraphQLController {
     throw new Error('Unimplemented stub');
   }
 
+  addSessionUserId(key) {
+    return ({
+      data,
+      context
+    }) => {
+      return { ...data,
+        [key]: context.user.id
+      };
+    };
+  }
+
   async delete(request) {
     if (this.beforeDelete) {
       await this.beforeDelete(request);
     }
 
-    const {
-      id
-    } = request.args;
-    const collection = this.collection();
-    const deleted = await collection.delete({
-      id
-    });
+    const deleted = await this.collection.delete(request.args);
     const deleted_at = new Date();
 
     if (this.afterDelete) {
@@ -1213,8 +1257,7 @@ class GraphQLController {
 
   _toCollection(method) {
     return request => {
-      const collection = this.collection();
-      return collection[method](request.args);
+      return this.collection[method](request.args);
     };
   }
 
@@ -1228,18 +1271,19 @@ class GraphQLController {
       const {
         args
       } = request;
-
-      const collection = _this2.collection();
-
       let {
         data
       } = args;
 
       if (_this2[before]) {
-        data = await _this2[before](request);
+        data = await _this2[before]({ ...request,
+          data
+        });
       }
 
-      let doc = await collection[method](args);
+      let doc = await _this2.collection[method]({ ...args,
+        data
+      });
 
       if (_this2[after]) {
         doc = await _this2[after]({ ...request,
@@ -1388,7 +1432,7 @@ function createHttpHandler({
   const app = Express();
   const cors = Cors(options.cors);
   app.use(cors);
-  options = processOptions(options.handler);
+  options = addInstanceGetters(options.handler);
   logger.debug('Creating HTTP Handler', {
     name: 'createHttpHandler',
     options,
@@ -1499,7 +1543,7 @@ function createPubSubHandler({
   Handler,
   options
 }) {
-  options = processOptions(options.handler);
+  options = addInstanceGetters(options.handler);
   logger.debug('Creating PubSub Handler', {
     name: 'createPubSubHandler',
     options,
@@ -1538,6 +1582,7 @@ class PubSubHandler extends Handler {
     var _this = this;
 
     return async function (message, context) {
+      console.log('calling pubsub start...');
       await _this.start();
       const {
         json,
@@ -1570,36 +1615,5 @@ class PubSubHandler extends Handler {
 
 }
 
-async function directGraphqlRequest({
-  Schema,
-  context,
-  query,
-  variables
-}) {
-  const rlogger = logger.child({
-    name: 'localGraphqlRequest',
-    query,
-    variables
-  });
-  rlogger.debug('Making request');
-  const root = {};
-  const response = await graphql(Schema, query, root, context, variables);
-  const {
-    data,
-    errors
-  } = response;
-
-  if (errors) {
-    const error = errors[0];
-    rlogger.error(error);
-    throw error;
-  } else {
-    rlogger.debug('Got response', {
-      data
-    });
-    return data;
-  }
-}
-
-export { Authorizers, Collection, DoesNotExistError, Errors, FirestoreCollection, GraphQLController, GraphQLError, HttpHandler, NotAuthorizedError, PubSubHandler, contextBuilder, createGraphqlHandler, createHttpHandler, createPubSubHandler, directGraphqlRequest, processSchema };
+export { Authorizers, Collection, DoesNotExistError, Errors, FirestoreCollection, GraphQLController, GraphQLError, Handler, HttpHandler, NotAuthorizedError, PubSubHandler, addInstanceGetters, contextBuilder, createGraphqlHandler, createHttpHandler, createPubSubHandler, directGraphqlRequest, directGraphqlRequester, makeSchema, processSchema };
 //# sourceMappingURL=index.modern.js.map

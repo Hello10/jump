@@ -1,105 +1,76 @@
 import * as React from 'react';
-import {
-  useEffect,
-  useState
-} from 'react';
-import PropTypes from 'prop-types';
+import {useQuery} from '@apollo/client';
 
 import base_logger from './logger';
 
-export default function PageContainer ({
-  Loading,
-  Error,
-  match,
-  client
-}) {
-  const {params, route} = match;
-  const {page: Page, name} = route;
+const logger = base_logger.child('PageContainer');
 
-  const logger = base_logger.child('PageContainer');
+function Query ({Loading, Error, Page, ...page_props}) {
+  const {name, params, user} = page_props;
+  const {query: query_gql, ...options} = Page.query({params, user});
+  const query = useQuery(query_gql, options);
 
-  const [last_match, setLastMatch] = useState(match);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-  const [data, setData] = useState(null);
-
-  // Check whether the page changed
-  if (match !== last_match) {
-    logger.debug('Resetting for new page', {last_match, match});
-    setLoading(true);
-    setError(null);
-    setData(null);
-    setLastMatch(match);
-  }
-
-  logger.debug('Rendering page container', {match, loading, error, data});
-
-  useEffect(()=> {
-    let unmounted = false;
-    async function runQuery () {
-      if (unmounted) {
-        logger.debug('Skip unmounted query');
-        return;
-      }
-
-      try {
-        const page_query = Page.query(params);
-        logger.debug('Running query', page_query);
-        const {data} = await client.query(page_query);
-        logger.debug('Ran query', data);
-        setData(data);
-      } catch (error) {
-        logger.error('Error running query', error);
-        setError(error);
-      } finally {
-        logger.debug('Done loading');
-        setLoading(false);
-      }
-    }
-
-    if (Page.query) {
-      runQuery();
-    } else {
-      setLoading(false);
-    }
-
-    return ()=> {
-      logger.debug('Unmounting page container');
-      unmounted = true;
-    };
-  }, [match]);
-
-  const props = {Page, match, route, params};
+  const {loading, error, data} = query;
+  logger.debug('Rendering page container query', {...page_props, loading, error, data});
 
   if (loading) {
     logger.debug(`Rendering loading for ${name}`);
     return (
-      <Loading {...props} />
+      <Loading
+        Page={Page}
+        query={query}
+        {...page_props}
+      />
     );
   } else if (error) {
     logger.debug(`Rendering error for ${name}`);
     return (
       <Error
+        Page={Page}
         error={error}
-        {...props}
+        query={query}
+        {...page_props}
       />
     );
   } else {
     logger.debug(`Rendering loaded for ${name}`);
     return (
       <Page
-        match={match}
-        params={params}
-        route={route}
-        {...data}
+        data={data}
+        query={query}
+        {...page_props}
       />
     );
   }
 }
 
-PageContainer.propTypes = {
-  Loading: PropTypes.func,
-  Error: PropTypes.func,
-  match: PropTypes.object,
-  client: PropTypes.object
-};
+export function PageContainer ({
+  Loading,
+  Error,
+  match,
+  user
+}) {
+  const {route, params} = match;
+  const {page: Page, name} = route;
+
+  const page_props = {match, route, params, user, name};
+
+  if (Page.query) {
+    return (
+      <Query
+        Loading={Loading}
+        Error={Error}
+        Page={Page}
+        {...page_props}
+      />
+    );
+  } else {
+    return (
+      <Page
+        data={{}}
+        query={null}
+        {...page_props}
+      />
+    );
+  }
+}

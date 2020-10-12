@@ -34,7 +34,7 @@ export default class Collection {
   // exists    ({id, assert = false})
   // get       ({id, assert = false})
   // getAll    ({ids, assert = false})
-  // find      ({query, limit, sort, start_at, start_after, select} = {})
+  // find      ({query, limit, sort, at, after, select} = {})
   // update    ({id, data, merge = true, assert = false})
   // delete    ({id, assert = true})
   // deleteAll ({ids})
@@ -50,7 +50,7 @@ export default class Collection {
   // getAllAssert    ({ids})
   // findOne         ({query, sort, select})
   // findIds         ({query})
-  // list            ({limit, sort, start_at, start_after} = {})
+  // list            ({limit, sort, at, after} = {})
   // updateAssert    ({id, data, merge = true})
   // updateAll       ({ids, data, merge = true, assert = false})
   // updateAllAssert ({ids, data, merge = true})
@@ -112,7 +112,7 @@ export default class Collection {
     return this.getAll({ids, assert: true});
   }
 
-  find (/* {query, limit, sort, start_at, start_after, select} = {} */) {
+  find (/* {query, limit, sort, at, after, select} = {} */) {
     throw new Error('Collection child class must implement .find');
   }
 
@@ -131,8 +131,8 @@ export default class Collection {
     return docs.map(({id})=> id);
   }
 
-  async list ({limit, sort, start_at, start_after} = {}) {
-    return this.find({limit, sort, start_at, start_after});
+  async list ({limit, sort, at, after} = {}) {
+    return this.find({limit, sort, at, after});
   }
 
   /////////////////
@@ -189,7 +189,7 @@ export default class Collection {
   /////////////
 
   get loader () {
-    return new DataLoader(async (ids)=> {
+    const loader = new DataLoader(async (ids)=> {
       this.logger.debug({
         message: `calling DataLoader for ${this.name}`,
         ids
@@ -199,34 +199,21 @@ export default class Collection {
 
       const lookup = new Map();
       for (const doc of docs) {
-        lookup.set(doc.id, doc);
+        lookup.set(doc.id.toString(), doc);
       }
 
       return ids.map((id)=> {
-        return lookup.has(id) ? lookup.get(id) : null;
+        const id_s = id.toString();
+        return lookup.has(id_s) ? lookup.get(id_s) : null;
       });
     });
-  }
 
-  load (id) {
-    if (!id) {
-      throw new Error('Missing id');
-    }
-    const loader = this.getLoader(this.name);
-    return loader.load(id);
-  }
+    loader.loadManyCompact = async function loadManyCompact (ids) {
+      const docs = await loader.loadMany(ids);
+      return compact(docs);
+    };
 
-  loadMany (ids) {
-    if (!ids.length) {
-      return [];
-    }
-    const loader = this.getLoader(this.name);
-    return loader.loadMany(ids);
-  }
-
-  async loadManyCompact (ids) {
-    const docs = await this.loadMany(ids);
-    return compact(docs);
+    return loader;
   }
 
   /////////////

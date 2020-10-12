@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-server",
-  "version": "2.0.6",
+  "version": "3.0.0",
   "description": "Jump Server",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@hello10/logger": "0.0.8",
-    "@hello10/util": "1.10.0",
+    "@hello10/util": "1.12.0",
     "bluebird": "3.7.2",
     "cors": "2.8.5",
     "dataloader": "2.0.0",

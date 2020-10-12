@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-util",
-  "version": "2.0.6",
+  "version": "3.0.0",
   "description": "Jump Util",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -18,12 +18,13 @@
     "test": "echo 'no tests'"
   },
   "dependencies": {
-    "@hello10/util": "1.10.0",
+    "@hello10/util": "1.12.0",
     "email-regex": "4.0.0",
     "lodash": "4.17.19",
     "phone-regex": "2.1.0",
     "randomstring": "1.1.5",
-    "type-of-is": "3.5.1"
+    "type-of-is": "3.5.1",
+    "url-regex": "5.0.0"
   },
   "devDependencies": {
     "@hello10/eslint-config": "1.0.2"
