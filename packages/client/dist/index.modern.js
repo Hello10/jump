@@ -16,13 +16,13 @@ function Query({
   Loading,
   Error,
   Page,
-  ...page_props
+  ...props
 }) {
   const {
     name,
     params,
     user
-  } = page_props;
+  } = props;
   const {
     query: query_gql,
     ...options
@@ -36,7 +36,7 @@ function Query({
     error,
     data
   } = query;
-  logger$1.debug('Rendering page container query', { ...page_props,
+  logger$1.debug('Rendering page container query', { ...props,
     loading,
     error,
     data
@@ -47,56 +47,47 @@ function Query({
     return /*#__PURE__*/createElement(Loading, Object.assign({
       Page: Page,
       query: query
-    }, page_props));
+    }, props));
   } else if (error) {
     logger$1.debug(`Rendering error for ${name}`);
     return /*#__PURE__*/createElement(Error, Object.assign({
       Page: Page,
       error: error,
       query: query
-    }, page_props));
+    }, props));
   } else {
     logger$1.debug(`Rendering loaded for ${name}`);
     return /*#__PURE__*/createElement(Page, Object.assign({
       data: data,
       query: query
-    }, page_props));
+    }, props));
   }
 }
 
-function PageContainer({
-  Loading,
-  Error,
-  match,
-  user
-}) {
+function PageContainer(props) {
   const {
     route,
     params
-  } = match;
+  } = props.match;
   const {
     page: Page,
     name
   } = route;
   const page_props = {
-    match,
     route,
     params,
-    user,
     name
   };
 
   if (Page.query) {
     return /*#__PURE__*/createElement(Query, Object.assign({
-      Loading: Loading,
-      Error: Error,
       Page: Page
-    }, page_props));
+    }, props, page_props));
   } else {
     return /*#__PURE__*/createElement(Page, Object.assign({
       data: {},
       query: null
-    }, page_props));
+    }, props, page_props));
   }
 }
 
@@ -162,7 +153,8 @@ function ApplicationContainer({
       Loading: PageLoading,
       Error: PageError,
       match: router.match,
-      client: client
+      client: client,
+      user: user
     }, props)));
   } else {
     return /*#__PURE__*/React__default.createElement(ApplicationLoading, Object.assign({
@@ -248,48 +240,44 @@ for (const [k, v] of Object.entries(types)) {
 
 const indexById = indexer();
 
-const mapp = function (iterable, map, options = {}) {
-  try {
-    let concurrency = options.concurrency || Infinity;
-    let index = 0;
-    const results = [];
-    const runs = [];
-    const iterator = iterable[Symbol.iterator]();
-    const sentinel = Symbol('sentinel');
+async function mapp(iterable, map, options = {}) {
+  let concurrency = options.concurrency || Infinity;
+  let index = 0;
+  const results = [];
+  const runs = [];
+  const iterator = iterable[Symbol.iterator]();
+  const sentinel = Symbol('sentinel');
 
-    function run() {
-      const {
-        done,
-        value
-      } = iterator.next();
+  while (concurrency-- > 0) {
+    const r = run();
 
-      if (done) {
-        return sentinel;
-      } else {
-        const i = index++;
-        const p = map(value, i);
-        return Promise.resolve(p).then(result => {
-          results[i] = result;
-          return run();
-        });
-      }
+    if (r === sentinel) {
+      break;
+    } else {
+      runs.push(r);
     }
-
-    while (concurrency-- > 0) {
-      const r = run();
-
-      if (r === sentinel) {
-        break;
-      } else {
-        runs.push(r);
-      }
-    }
-
-    return Promise.all(runs).then(() => results);
-  } catch (e) {
-    return Promise.reject(e);
   }
-};
+
+  function run() {
+    const {
+      done,
+      value
+    } = iterator.next();
+
+    if (done) {
+      return sentinel;
+    } else {
+      const i = index++;
+      const p = map(value, i);
+      return Promise.resolve(p).then(result => {
+        results[i] = result;
+        return run();
+      });
+    }
+  }
+
+  return Promise.all(runs).then(() => results);
+}
 var mapp_1 = mapp;
 
 class Session extends useSingleton.Singleton {
@@ -411,7 +399,7 @@ class Session extends useSingleton.Singleton {
       SessionUser
     } = this;
 
-    if (SessionUser.refresh) {
+    if (!SessionUser.refresh) {
       this.logger.debug('No refresh method defined on SessionUser');
       return null;
     }
@@ -421,7 +409,7 @@ class Session extends useSingleton.Singleton {
       const {
         client
       } = _this3;
-      const client_auth = await client.getAuth();
+      const client_auth = await client.loadAuth();
       const data = await SessionUser.refresh(client_auth);
       const {
         user,

@@ -184,6 +184,22 @@ export default class GraphQLController {
     };
   }
 
+  pass ({obj, info}) {
+    const attr = info.fieldName;
+    return obj[attr];
+  }
+
+  polyRef ({obj, info, context}) {
+    const {fieldName: name} = info;
+    const type = obj[`${name}_type`];
+    const id = obj[`${name}_id`];
+    if (!(type && id)) {
+      return null;
+    }
+    const Loader = context.getLoader(type);
+    return Loader.load(id);
+  }
+
   ///////////////////////
   // Generic Resolvers //
   ///////////////////////

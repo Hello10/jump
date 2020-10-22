@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-server",
-  "version": "3.0.0",
+  "version": "3.0.2",
   "description": "Jump Server",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -19,7 +19,7 @@
   },
   "dependencies": {
     "@hello10/logger": "0.0.8",
-    "@hello10/util": "1.12.0",
+    "@hello10/util": "1.13.0",
     "bluebird": "3.7.2",
     "cors": "2.8.5",
     "dataloader": "2.0.0",
@@ -29,12 +29,12 @@
   },
   "devDependencies": {
     "@hello10/eslint-config": "1.0.2",
-    "apollo-server-cloud-functions": "2.14.2",
+    "apollo-server-cloud-functions": "2.18.2",
     "graphql": "14.2.1",
     "graphql-tools": "6.0.12"
   },
   "peerDependencies": {
-    "apollo-server-cloud-functions": "^2.14.2",
+    "apollo-server-cloud-functions": "^2.18.2",
     "graphql": "^14.0.0",
     "graphql-tools": "^5.0.0"
   }

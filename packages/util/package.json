@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-util",
-  "version": "3.0.0",
+  "version": "3.0.2",
   "description": "Jump Util",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -18,7 +18,7 @@
     "test": "echo 'no tests'"
   },
   "dependencies": {
-    "@hello10/util": "1.12.0",
+    "@hello10/util": "1.13.0",
     "email-regex": "4.0.0",
     "lodash": "4.17.19",
     "phone-regex": "2.1.0",

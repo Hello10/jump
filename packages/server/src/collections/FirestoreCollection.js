@@ -16,8 +16,12 @@ export default class FirestoreCollection extends Collection {
     return this.app.auth();
   }
 
+  get firestore () {
+    return this.app.firestore();
+  }
+
   get collection () {
-    return this.app.firestore().collection(this.name);
+    return this.firestore.collection(this.name);
   }
 
   doc (id) {
@@ -64,7 +68,7 @@ export default class FirestoreCollection extends Collection {
 
     const uniques = uniq(ids);
     const refs = uniques.map((id)=> this.doc(id));
-    const snaps = await this.firestore.getAll(refs);
+    const snaps = await this.firestore.getAll(...refs);
     const docs = snaps.map((snap)=> this._snapToDoc(snap));
 
     const docs_by_id = {};

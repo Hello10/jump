@@ -14,7 +14,7 @@ var Cors = _interopDefault(require('cors'));
 class GraphQLError extends apolloServerCloudFunctions.ApolloError {
   constructor({
     code = 'GraphQLError',
-    message = 'GraphQL error',
+    message = 'Server error',
     params
   } = {}) {
     if (message.constructor === Function) {
@@ -541,8 +541,12 @@ class FirestoreCollection extends Collection {
     return this.app.auth();
   }
 
+  get firestore() {
+    return this.app.firestore();
+  }
+
   get collection() {
-    return this.app.firestore().collection(this.name);
+    return this.firestore.collection(this.name);
   }
 
   doc(id) {
@@ -632,7 +636,7 @@ class FirestoreCollection extends Collection {
 
       const uniques = lodash.uniq(ids);
       const refs = uniques.map(id => _this4.doc(id));
-      return Promise.resolve(_this4.firestore.getAll(refs)).then(function (snaps) {
+      return Promise.resolve(_this4.firestore.getAll(...refs)).then(function (snaps) {
         const docs = snaps.map(snap => _this4._snapToDoc(snap));
         const docs_by_id = {};
 
@@ -1488,6 +1492,33 @@ class GraphQLController {
         [key]: context.user.id
       });
     };
+  }
+
+  pass({
+    obj,
+    info
+  }) {
+    const attr = info.fieldName;
+    return obj[attr];
+  }
+
+  polyRef({
+    obj,
+    info,
+    context
+  }) {
+    const {
+      fieldName: name
+    } = info;
+    const type = obj[`${name}_type`];
+    const id = obj[`${name}_id`];
+
+    if (!(type && id)) {
+      return null;
+    }
+
+    const Loader = context.getLoader(type);
+    return Loader.load(id);
   }
 
   delete(request) {

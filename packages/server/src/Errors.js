@@ -3,7 +3,7 @@ import {ApolloError} from 'apollo-server-cloud-functions';
 export class GraphQLError extends ApolloError {
   constructor ({
     code = 'GraphQLError',
-    message = 'GraphQL error',
+    message = 'Server error',
     params
   } = {}) {
     if (message.constructor === Function) {

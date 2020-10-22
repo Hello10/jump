@@ -57,6 +57,7 @@ export default function ApplicationContainer ({
           Error={PageError}
           match={router.match}
           client={client}
+          user={user}
           {...props}
         />
       </Container>

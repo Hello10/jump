@@ -98,7 +98,7 @@ export default class Session extends useSingleton.Singleton {
 
   refresh () {
     const {SessionUser} = this;
-    if (SessionUser.refresh) {
+    if (!SessionUser.refresh) {
       this.logger.debug('No refresh method defined on SessionUser');
       return null;
     }
@@ -106,7 +106,7 @@ export default class Session extends useSingleton.Singleton {
     this.logger.debug('Refreshing session');
     return this._change(async ()=> {
       const {client} = this;
-      const client_auth = await client.getAuth();
+      const client_auth = await client.loadAuth();
       const data = await SessionUser.refresh(client_auth);
       const {user, auth} = data;
       this.logger.debug('Session refreshed, setting auth', {user});
