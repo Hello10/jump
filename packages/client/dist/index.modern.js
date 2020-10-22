@@ -8,56 +8,94 @@ import PropTypes from 'prop-types';
 import { setContext } from '@apollo/client/link/context';
 import Groutcho from 'groutcho';
 
+function _extends() {
+  _extends = Object.assign || function (target) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i];
+
+      for (var key in source) {
+        if (Object.prototype.hasOwnProperty.call(source, key)) {
+          target[key] = source[key];
+        }
+      }
+    }
+
+    return target;
+  };
+
+  return _extends.apply(this, arguments);
+}
+
+function _objectWithoutPropertiesLoose(source, excluded) {
+  if (source == null) return {};
+  var target = {};
+  var sourceKeys = Object.keys(source);
+  var key, i;
+
+  for (i = 0; i < sourceKeys.length; i++) {
+    key = sourceKeys[i];
+    if (excluded.indexOf(key) >= 0) continue;
+    target[key] = source[key];
+  }
+
+  return target;
+}
+
 const logger = new Logger('jump');
 
 const logger$1 = logger.child('PageContainer');
 
-function Query({
-  Loading,
-  Error,
-  Page,
-  ...props
-}) {
+function Query(_ref) {
+  let {
+    Loading,
+    Error,
+    Page
+  } = _ref,
+      props = _objectWithoutPropertiesLoose(_ref, ["Loading", "Error", "Page"]);
+
   const {
     name,
     params,
     user
   } = props;
-  const {
-    query: query_gql,
-    ...options
-  } = Page.query({
+
+  const _Page$query = Page.query({
     params,
     user
-  });
+  }),
+        {
+    query: query_gql
+  } = _Page$query,
+        options = _objectWithoutPropertiesLoose(_Page$query, ["query"]);
+
   const query = useQuery(query_gql, options);
   const {
     loading,
     error,
     data
   } = query;
-  logger$1.debug('Rendering page container query', { ...props,
+  logger$1.debug('Rendering page container query', _extends({}, props, {
     loading,
     error,
     data
-  });
+  }));
 
   if (loading) {
     logger$1.debug(`Rendering loading for ${name}`);
-    return /*#__PURE__*/createElement(Loading, Object.assign({
+    return /*#__PURE__*/createElement(Loading, _extends({
       Page: Page,
       query: query
     }, props));
   } else if (error) {
     logger$1.debug(`Rendering error for ${name}`);
-    return /*#__PURE__*/createElement(Error, Object.assign({
+    return /*#__PURE__*/createElement(Error, _extends({
       Page: Page,
       error: error,
       query: query
     }, props));
   } else {
     logger$1.debug(`Rendering loaded for ${name}`);
-    return /*#__PURE__*/createElement(Page, Object.assign({
+    return /*#__PURE__*/createElement(Page, _extends({
       data: data,
       query: query
     }, props));
@@ -80,27 +118,29 @@ function PageContainer(props) {
   };
 
   if (Page.query) {
-    return /*#__PURE__*/createElement(Query, Object.assign({
+    return /*#__PURE__*/createElement(Query, _extends({
       Page: Page
     }, props, page_props));
   } else {
-    return /*#__PURE__*/createElement(Page, Object.assign({
+    return /*#__PURE__*/createElement(Page, _extends({
       data: {},
       query: null
     }, props, page_props));
   }
 }
 
-function ApplicationContainer({
-  ApplicationLoading,
-  Container,
-  PageLoading,
-  PageError,
-  client,
-  useRouter,
-  useSession,
-  ...props
-}) {
+function ApplicationContainer(_ref) {
+  let {
+    ApplicationLoading,
+    Container,
+    PageLoading,
+    PageError,
+    client,
+    useRouter,
+    useSession
+  } = _ref,
+      props = _objectWithoutPropertiesLoose(_ref, ["ApplicationLoading", "Container", "PageLoading", "PageError", "client", "useRouter", "useSession"]);
+
   const logger$1 = logger.child('ApplicationContainer');
   logger$1.debug('Rendering ApplicationContainer');
   const router = useRouter();
@@ -129,12 +169,12 @@ function ApplicationContainer({
       user
     });
 
-    if (match?.redirect) {
+    if (match == null ? void 0 : match.redirect) {
       const {
         route
       } = match;
       let msg = 'Got redirect';
-      const name = route?.name;
+      const name = route == null ? void 0 : route.name;
 
       if (name) {
         msg = `${msg} to ${name}`;
@@ -149,7 +189,7 @@ function ApplicationContainer({
   if (session.loaded && router.match) {
     return /*#__PURE__*/React__default.createElement(Container, {
       match: router.match
-    }, /*#__PURE__*/React__default.createElement(PageContainer, Object.assign({
+    }, /*#__PURE__*/React__default.createElement(PageContainer, _extends({
       Loading: PageLoading,
       Error: PageError,
       match: router.match,
@@ -157,7 +197,7 @@ function ApplicationContainer({
       user: user
     }, props)));
   } else {
-    return /*#__PURE__*/React__default.createElement(ApplicationLoading, Object.assign({
+    return /*#__PURE__*/React__default.createElement(ApplicationLoading, _extends({
       error: session.error || router.error,
       user: user
     }, props));
@@ -463,11 +503,10 @@ class Session extends useSingleton.Singleton {
 
     try {
       const state = await action();
-      this.setState({
+      this.setState(_extends({
         changing: false,
-        error: null,
-        ...state
-      });
+        error: null
+      }, state));
     } catch (error) {
       this.logger.error('Session error', {
         error
@@ -727,11 +766,13 @@ function getClient({
 }
 
 function getGraphQLErrorCode(error) {
+  var _error, _error$extensions;
+
   if (error.graphQLErrors) {
     [error] = error.graphQLErrors;
   }
 
-  return error?.extensions?.code;
+  return (_error = error) == null ? void 0 : (_error$extensions = _error.extensions) == null ? void 0 : _error$extensions.code;
 }
 
 function getSubdomain(hostname) {
@@ -812,7 +853,9 @@ class Router extends useSingleton.Singleton {
   }
 
   get url() {
-    return this.match?.url;
+    var _this$match;
+
+    return (_this$match = this.match) == null ? void 0 : _this$match.url;
   }
 
   get error() {
@@ -824,25 +867,33 @@ class Router extends useSingleton.Singleton {
   }
 
   get route() {
-    return this.match?.route;
+    var _this$match2;
+
+    return (_this$match2 = this.match) == null ? void 0 : _this$match2.route;
   }
 
   get params() {
-    return this.match?.params;
+    var _this$match3;
+
+    return (_this$match3 = this.match) == null ? void 0 : _this$match3.params;
   }
 
   get page() {
-    return this.route?.page;
+    var _this$route;
+
+    return (_this$route = this.route) == null ? void 0 : _this$route.page;
   }
 
   get input() {
     return this.state.input;
   }
 
-  start({
-    url,
-    ...input
-  }) {
+  start(_ref) {
+    let {
+      url
+    } = _ref,
+        input = _objectWithoutPropertiesLoose(_ref, ["url"]);
+
     if (!url) {
       url = '/';
 
@@ -858,9 +909,9 @@ class Router extends useSingleton.Singleton {
       }
     }
 
-    const match = this.router.match({ ...input,
+    const match = this.router.match(_extends({}, input, {
       url
-    });
+    }));
 
     this._handleMatch({
       match,
@@ -871,9 +922,7 @@ class Router extends useSingleton.Singleton {
   }
 
   go(args) {
-    args = { ...this.input,
-      ...this.router._normalizeInput(args)
-    };
+    args = _extends({}, this.input, this.router._normalizeInput(args));
     this.logger.debug('Router go called', {
       args,
       current: this.url
@@ -964,9 +1013,9 @@ class Router extends useSingleton.Singleton {
     const {
       input
     } = this;
-    const match = this.router.match({ ...input,
+    const match = this.router.match(_extends({}, input, {
       url
-    });
+    }));
 
     if (match) {
       this.setState({

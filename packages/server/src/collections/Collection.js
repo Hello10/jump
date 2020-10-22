@@ -1,7 +1,6 @@
 import DataLoader from 'dataloader';
 import {compact} from 'lodash';
-import Promise from 'bluebird';
-import {singleton} from '@hello10/util';
+import {mapp, singleton} from '@hello10/util';
 
 import initialize from '../initialize';
 
@@ -67,7 +66,7 @@ export default class Collection {
   }
 
   createAll ({datas}) {
-    return Promise.map(datas, (data)=> this.create({data}));
+    return mapp(datas, (data)=> this.create({data}));
   }
 
   async findOrCreate ({query, data}) {
@@ -149,7 +148,7 @@ export default class Collection {
 
   async updateAll ({ids, data, merge = true, assert = false}) {
     this._addUpdatedAt(data);
-    return Promise.map(ids, (id)=> {
+    return mapp(ids, (id)=> {
       return this.update({id, data, merge, assert});
     });
   }

@@ -1,10 +1,9 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('apollo-server-cloud-functions'), require('dataloader'), require('lodash'), require('bluebird'), require('@hello10/util'), require('@hello10/logger'), require('graphql'), require('graphql-tools'), require('express'), require('cors')) :
-  typeof define === 'function' && define.amd ? define(['exports', 'apollo-server-cloud-functions', 'dataloader', 'lodash', 'bluebird', '@hello10/util', '@hello10/logger', 'graphql', 'graphql-tools', 'express', 'cors'], factory) :
-  (global = global || self, factory(global.jumpServer = {}, global.apolloServerCloudFunctions, global.dataloader, global.lodash, global.bluebird, global.util, global.Logger, global.graphql, global.graphqlTools, global.express, global.cors));
-}(this, (function (exports, apolloServerCloudFunctions, DataLoader, lodash, Promise$1, util, Logger, GraphQL, graphqlTools, Express, Cors) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('apollo-server-cloud-functions'), require('dataloader'), require('lodash'), require('@hello10/util'), require('@hello10/logger'), require('graphql'), require('graphql-tools'), require('express'), require('cors')) :
+  typeof define === 'function' && define.amd ? define(['exports', 'apollo-server-cloud-functions', 'dataloader', 'lodash', '@hello10/util', '@hello10/logger', 'graphql', 'graphql-tools', 'express', 'cors'], factory) :
+  (global = global || self, factory(global.jumpServer = {}, global.apolloServerCloudFunctions, global.dataloader, global.lodash, global.util, global.Logger, global.graphql, global.graphqlTools, global.express, global.cors));
+}(this, (function (exports, apolloServerCloudFunctions, DataLoader, lodash, util, Logger, GraphQL, graphqlTools, Express, Cors) {
   DataLoader = DataLoader && Object.prototype.hasOwnProperty.call(DataLoader, 'default') ? DataLoader['default'] : DataLoader;
-  Promise$1 = Promise$1 && Object.prototype.hasOwnProperty.call(Promise$1, 'default') ? Promise$1['default'] : Promise$1;
   Logger = Logger && Object.prototype.hasOwnProperty.call(Logger, 'default') ? Logger['default'] : Logger;
   Express = Express && Object.prototype.hasOwnProperty.call(Express, 'default') ? Express['default'] : Express;
   Cors = Cors && Object.prototype.hasOwnProperty.call(Cors, 'default') ? Cors['default'] : Cors;
@@ -142,48 +141,86 @@
 
     bucket(name) {
       return this.Admin.storage().bucket(name);
-    }
+    } // Leaf child classes MUST overide name getter that the name of the
+    // collection backing this collection
+    // ================================================================
+
 
     get name() {
       throw new Error('Collection child class must implement .name');
-    }
+    } // Implementation child classes MUST overide collection getter that
+    // returns a collection instance from the backing database
+    // ================================================================
+
 
     get collection() {
       throw new Error('Collection child class must implement .collection');
-    }
+    } // Implementation child classes MUST override unimplemented methods
+    // ================================================================
+    // create    ({data})
+    // exists    ({id, assert = false})
+    // get       ({id, assert = false})
+    // getAll    ({ids, assert = false})
+    // find      ({query, limit, sort, at, after, select} = {})
+    // update    ({id, data, merge = true, assert = false})
+    // delete    ({id, assert = true})
+    // deleteAll ({ids})
+    //
+    // Child classes MAY override implemented CRUD methods
+    // ================================================================
+    // createAll       ({datas})
+    // findOrCreate    ({query, data})
+    // existsAssert    ({id})
+    // existsAll       ({ids, assert = false})
+    // existsAllAssert ({ids})
+    // getAssert       ({id})
+    // getAllAssert    ({ids})
+    // findOne         ({query, sort, select})
+    // findIds         ({query})
+    // list            ({limit, sort, at, after} = {})
+    // updateAssert    ({id, data, merge = true})
+    // updateAll       ({ids, data, merge = true, assert = false})
+    // updateAllAssert ({ids, data, merge = true})
+    // updateMany      ({query, data, merge = true})
+    // deleteAssert    ({id})
+    // deleteMany      ({query})
+    /////////////////
+    // Core:Create //
+    /////////////////
 
-    create() {
+
+    create()
+    /* {data} */
+    {
       throw new Error('Collection child class must implement .create');
     }
 
     createAll({
       datas
     }) {
-      return Promise$1.map(datas, data => this.create({
+      return util.mapp(datas, data => this.create({
         data
       }));
     }
 
-    findOrCreate({
+    async findOrCreate({
       query,
       data
     }) {
-      try {
-        const _this = this;
+      const doc = await this.findOne({
+        query
+      });
+      return doc || this.create({
+        data
+      });
+    } ///////////////
+    // Core:Read //
+    ///////////////
 
-        return Promise$1.resolve(_this.findOne({
-          query
-        })).then(function (doc) {
-          return doc || _this.create({
-            data
-          });
-        });
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
-    }
 
-    exists() {
+    exists()
+    /* {id, assert = false} */
+    {
       throw new Error('Collection child class must implement .exists');
     }
 
@@ -196,22 +233,15 @@
       });
     }
 
-    existsAll({
+    async existsAll({
       ids,
       assert = false
     }) {
-      try {
-        const _this2 = this;
-
-        return Promise$1.resolve(_this2.getAll({
-          ids,
-          assert
-        })).then(function (docs) {
-          return docs.every(doc => !!doc);
-        });
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
+      const docs = await this.getAll({
+        ids,
+        assert
+      });
+      return docs.every(doc => !!doc);
     }
 
     existsAllAssert({
@@ -223,7 +253,9 @@
       });
     }
 
-    get() {
+    get()
+    /* {id, assert = false} */
+    {
       throw new Error('Collection child class must implement .get');
     }
 
@@ -236,7 +268,9 @@
       });
     }
 
-    getAll() {
+    getAll()
+    /* {ids, assert = false} */
+    {
       throw new Error('Collection child class must implement .getAll');
     }
 
@@ -249,71 +283,58 @@
       });
     }
 
-    find() {
+    find()
+    /* {query, limit, sort, at, after, select} = {} */
+    {
       throw new Error('Collection child class must implement .find');
     }
 
-    findOne({
+    async findOne({
       query,
       sort,
       select
     }) {
-      try {
-        const _this3 = this;
-
-        return Promise$1.resolve(_this3.find({
-          limit: 1,
-          query,
-          sort,
-          select
-        })).then(function (docs) {
-          return docs.length > 0 ? docs[0] : null;
-        });
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
+      const docs = await this.find({
+        limit: 1,
+        query,
+        sort,
+        select
+      });
+      return docs.length > 0 ? docs[0] : null;
     }
 
-    findIds({
+    async findIds({
       query
     }) {
-      try {
-        const _this4 = this;
-
-        return Promise$1.resolve(_this4.find({
-          query,
-          select: ['id']
-        })).then(function (docs) {
-          return docs.map(({
-            id
-          }) => id);
-        });
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
+      const docs = await this.find({
+        query,
+        select: ['id']
+      });
+      return docs.map(({
+        id
+      }) => id);
     }
 
-    list({
+    async list({
       limit,
       sort,
       at,
       after
     } = {}) {
-      try {
-        const _this5 = this;
+      return this.find({
+        limit,
+        sort,
+        at,
+        after
+      });
+    } /////////////////
+    // Core:Update //
+    /////////////////
 
-        return Promise$1.resolve(_this5.find({
-          limit,
-          sort,
-          at,
-          after
-        }));
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
-    }
 
-    update() {
+    update()
+    /* {id, data, merge = true, assert = false} */
+    {
       throw new Error('Collection child class must implement .update');
     }
 
@@ -330,28 +351,22 @@
       });
     }
 
-    updateAll({
+    async updateAll({
       ids,
       data,
       merge = true,
       assert = false
     }) {
-      try {
-        const _this6 = this;
+      this._addUpdatedAt(data);
 
-        _this6._addUpdatedAt(data);
-
-        return Promise$1.resolve(Promise$1.map(ids, id => {
-          return _this6.update({
-            id,
-            data,
-            merge,
-            assert
-          });
-        }));
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
+      return util.mapp(ids, id => {
+        return this.update({
+          id,
+          data,
+          merge,
+          assert
+        });
+      });
     }
 
     updateAllAssert({
@@ -367,29 +382,27 @@
       });
     }
 
-    updateMany({
+    async updateMany({
       query,
       data,
       merge = true
     }) {
-      try {
-        const _this7 = this;
+      const ids = await this.findIds({
+        query
+      });
+      return this.updateAll({
+        ids,
+        data,
+        merge
+      });
+    } /////////////////
+    // Core:Delete //
+    /////////////////
 
-        return Promise$1.resolve(_this7.findIds({
-          query
-        })).then(function (ids) {
-          return _this7.updateAll({
-            ids,
-            data,
-            merge
-          });
-        });
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
-    }
 
-    delete() {
+    delete()
+    /* {id, assert = true} */
+    {
       throw new Error('Collection child class must implement .delete');
     }
 
@@ -402,67 +415,57 @@
       });
     }
 
-    deleteAll() {
+    deleteAll()
+    /* {ids} */
+    {
       throw new Error('Collection child class must implement .deleteAll');
     }
 
-    deleteMany({
+    async deleteMany({
       query
     }) {
-      try {
-        const _this8 = this;
+      const ids = await this.findIds({
+        query
+      });
+      return this.deleteAll({
+        ids
+      });
+    } /////////////
+    // Loaders //
+    /////////////
 
-        return Promise$1.resolve(_this8.findIds({
-          query
-        })).then(function (ids) {
-          return _this8.deleteAll({
-            ids
-          });
-        });
-      } catch (e) {
-        return Promise$1.reject(e);
-      }
-    }
 
     get loader() {
-      const _this9 = this;
+      const loader = new DataLoader(async ids => {
+        this.logger.debug({
+          message: `calling DataLoader for ${this.name}`,
+          ids
+        });
+        const docs = await this.getAll({
+          ids
+        });
+        const lookup = new Map();
 
-      const loader = new DataLoader(function (ids) {
-        try {
-          _this9.logger.debug({
-            message: `calling DataLoader for ${_this9.name}`,
-            ids
-          });
-
-          return Promise$1.resolve(_this9.getAll({
-            ids
-          })).then(function (docs) {
-            const lookup = new Map();
-
-            for (const doc of docs) {
-              lookup.set(doc.id.toString(), doc);
-            }
-
-            return ids.map(id => {
-              const id_s = id.toString();
-              return lookup.has(id_s) ? lookup.get(id_s) : null;
-            });
-          });
-        } catch (e) {
-          return Promise$1.reject(e);
+        for (const doc of docs) {
+          lookup.set(doc.id.toString(), doc);
         }
+
+        return ids.map(id => {
+          const id_s = id.toString();
+          return lookup.has(id_s) ? lookup.get(id_s) : null;
+        });
       });
 
-      loader.loadManyCompact = function loadManyCompact(ids) {
-        try {
-          return Promise$1.resolve(loader.loadMany(ids)).then(lodash.compact);
-        } catch (e) {
-          return Promise$1.reject(e);
-        }
+      loader.loadManyCompact = async function loadManyCompact(ids) {
+        const docs = await loader.loadMany(ids);
+        return lodash.compact(docs);
       };
 
       return loader;
-    }
+    } /////////////
+    // Helpers //
+    /////////////
+
 
     _timestamp() {
       return new Date();
@@ -549,127 +552,103 @@
 
     doc(id) {
       return this.collection.doc(id);
-    }
+    } /////////////////
+    // Core:Create //
+    /////////////////
 
-    create({
+
+    async create({
       data
     }) {
-      try {
-        const _this = this;
+      return this.add({
+        data
+      });
+    } ///////////////
+    // Core:Read //
+    ///////////////
 
-        return Promise.resolve(_this.add({
-          data
-        }));
-      } catch (e) {
-        return Promise.reject(e);
-      }
-    }
 
-    exists({
+    async exists({
       id,
       assert = false
     }) {
-      try {
-        const _this2 = this;
+      const ref = this.doc(id);
+      const snap = await ref.get();
+      const {
+        exists
+      } = snap;
 
-        const ref = _this2.doc(id);
-
-        return Promise.resolve(ref.get()).then(function (snap) {
-          const {
-            exists
-          } = snap;
-
-          if (assert && !exists) {
-            const type = _this2.name();
-
-            throw new DoesNotExistError({
-              type,
-              id
-            });
-          }
-
-          return exists;
+      if (assert && !exists) {
+        const type = this.name();
+        throw new DoesNotExistError({
+          type,
+          id
         });
-      } catch (e) {
-        return Promise.reject(e);
       }
+
+      return exists;
     }
 
-    get({
+    async get({
       id,
       assert = false
     }) {
-      try {
-        const _this3 = this;
+      const ref = this.doc(id);
+      const snap = await ref.get();
 
-        const ref = _this3.doc(id);
-
-        return Promise.resolve(ref.get()).then(function (snap) {
-          if (assert && !snap.exists) {
-            const type = _this3.name();
-
-            throw new DoesNotExistError({
-              type,
-              id
-            });
-          }
-
-          return _this3._snapToDoc(snap);
+      if (assert && !snap.exists) {
+        const type = this.name();
+        throw new DoesNotExistError({
+          type,
+          id
         });
-      } catch (e) {
-        return Promise.reject(e);
       }
+
+      return this._snapToDoc(snap);
     }
 
-    getAll({
+    async getAll({
       ids,
       assert = false
     }) {
-      try {
-        const _this4 = this;
+      if (!ids || ids.length === 0) {
+        return [];
+      }
 
-        if (!ids || ids.length === 0) {
-          return Promise.resolve([]);
+      const uniques = lodash.uniq(ids);
+      const refs = uniques.map(id => this.doc(id));
+      const snaps = await this.firestore.getAll(...refs);
+      const docs = snaps.map(snap => this._snapToDoc(snap));
+      const docs_by_id = {};
+
+      for (const doc of docs) {
+        if (doc) {
+          docs_by_id[doc.id] = doc;
+        }
+      }
+
+      const missing_ids = [];
+      const result = ids.map(id => {
+        const exists = (id in docs_by_id);
+
+        if (!exists) {
+          missing_ids.push(id);
         }
 
-        const uniques = lodash.uniq(ids);
-        const refs = uniques.map(id => _this4.doc(id));
-        return Promise.resolve(_this4.firestore.getAll(...refs)).then(function (snaps) {
-          const docs = snaps.map(snap => _this4._snapToDoc(snap));
-          const docs_by_id = {};
+        return exists ? docs_by_id[id] : null;
+      });
 
-          for (const doc of docs) {
-            if (doc) {
-              docs_by_id[doc.id] = doc;
-            }
-          }
-
-          const missing_ids = [];
-          const result = ids.map(id => {
-            const exists = (id in docs_by_id);
-
-            if (!exists) {
-              missing_ids.push(id);
-            }
-
-            return exists ? docs_by_id[id] : null;
-          });
-
-          if (assert && missing_ids.length) {
-            throw new DoesNotExistError({
-              type: _this4.name,
-              ids: missing_ids
-            });
-          } else {
-            return result;
-          }
+      if (assert && missing_ids.length) {
+        throw new DoesNotExistError({
+          type: this.name,
+          ids: missing_ids
         });
-      } catch (e) {
-        return Promise.reject(e);
+      } else {
+        return result;
       }
     }
 
-    find({
+    async find({
       query,
       limit,
       sort,
@@ -677,120 +656,93 @@
       after,
       select
     } = {}) {
-      try {
-        const _this5 = this;
+      let cursor = this.collection;
 
-        function _temp2() {
-          if (limit) {
-            if (!lodash.isNumber(limit)) {
-              invalid('limit');
-            }
+      function invalid(field) {
+        throw new Error(`Invalid ${field} for find`);
+      }
 
-            cursor = cursor.limit(limit);
-          }
+      if (query) {
+        let parts;
 
-          if (select) {
-            if (!Array.isArray(select)) {
-              invalid('select');
-            }
-
-            cursor = cursor.select(...select);
-          }
-
-          return Promise.resolve(cursor.get()).then(function (snap) {
-            return snap.docs.map(_this5._snapToDoc);
+        if (lodash.isObject(query)) {
+          parts = Object.entries(query).map(([field, value]) => {
+            return [field, '==', value];
           });
+        } else if (Array.isArray(query)) {
+          parts = Array.isArray(query[0]) ? query : [query];
+        } else {
+          invalid('query');
         }
 
-        function invalid(field) {
-          throw new Error(`Invalid ${field} for find`);
-        }
-
-        let cursor = _this5.collection;
-
-        if (query) {
-          let parts;
-
-          if (lodash.isObject(query)) {
-            parts = Object.entries(query).map(([field, value]) => {
-              return [field, '==', value];
-            });
-          } else if (Array.isArray(query)) {
-            parts = Array.isArray(query[0]) ? query : [query];
-          } else {
+        for (const part of parts) {
+          if (part.length !== 3) {
             invalid('query');
           }
 
-          for (const part of parts) {
-            if (part.length !== 3) {
-              invalid('query');
-            }
+          const [field, op, value] = part;
+          cursor = cursor.where(field, op, value);
+        }
+      }
 
-            const [field, op, value] = part;
-            cursor = cursor.where(field, op, value);
-          }
+      if (sort) {
+        if (!Array.isArray(sort)) {
+          sort = [sort];
         }
 
-        if (sort) {
-          if (!Array.isArray(sort)) {
-            sort = [sort];
-          }
+        cursor = cursor.orderBy(...sort);
+      }
 
-          cursor = cursor.orderBy(...sort);
+      const start = after || at;
+
+      if (start) {
+        const doc = await this.doc(start).get();
+        const fn = after ? 'startAfter' : 'startAt';
+        cursor = cursor[fn](doc);
+      }
+
+      if (limit) {
+        if (!lodash.isNumber(limit)) {
+          invalid('limit');
         }
 
-        const start = after || at;
-
-        const _temp = function () {
-          if (start) {
-            return Promise.resolve(_this5.doc(start).get()).then(function (doc) {
-              const fn = after ? 'startAfter' : 'startAt';
-              cursor = cursor[fn](doc);
-            });
-          }
-        }();
-
-        return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
-      } catch (e) {
-        return Promise.reject(e);
+        cursor = cursor.limit(limit);
       }
-    }
 
-    update(args) {
-      try {
-        const _this6 = this;
+      if (select) {
+        if (!Array.isArray(select)) {
+          invalid('select');
+        }
 
-        return Promise.resolve(_this6.set(args));
-      } catch (e) {
-        return Promise.reject(e);
+        cursor = cursor.select(...select);
       }
-    }
 
-    delete({
+      const snap = await cursor.get();
+      return snap.docs.map(this._snapToDoc);
+    } /////////////////
+    // Core:Update //
+    /////////////////
+
+
+    async update(args) {
+      return this.set(args);
+    } /////////////////
+    // Core:Delete //
+    /////////////////
+
+
+    async delete({
       id,
       assert = true
     }) {
-      try {
-        const _this7 = this;
-
-        function _temp4() {
-          const ref = _this7.doc(id);
-
-          return ref.delete();
-        }
-
-        const _temp3 = function () {
-          if (assert) {
-            return Promise.resolve(_this7.existsAssert({
-              id
-            })).then(function () {});
-          }
-        }();
-
-        return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
-      } catch (e) {
-        return Promise.reject(e);
+      if (assert) {
+        await this.existsAssert({
+          id
+        });
       }
+
+      const ref = this.doc(id);
+      return ref.delete();
     }
 
     deleteAll({
@@ -804,60 +756,42 @@
       }
 
       return batch.commit();
-    }
+    } ///////////////
+    // Auxiliary //
+    ///////////////
 
-    add({
+
+    async add({
       data
     }) {
-      try {
-        const _this8 = this;
+      data = lodash.omit(data, 'id');
 
-        data = lodash.omit(data, 'id');
+      this._addTimestamps(data);
 
-        _this8._addTimestamps(data);
-
-        return Promise.resolve(_this8.collection.add(data)).then(function (ref) {
-          data.id = ref.id;
-          return data;
-        });
-      } catch (e) {
-        return Promise.reject(e);
-      }
+      const ref = await this.collection.add(data);
+      data.id = ref.id;
+      return data;
     }
 
-    getOrAddById({
+    async getOrAddById({
       id,
       data,
       add = x => x
     }) {
-      try {
-        const _this9 = this;
+      let user = await this.get({
+        id
+      });
 
-        return Promise.resolve(_this9.get({
-          id
-        })).then(function (user) {
-          const _temp5 = function () {
-            if (!user) {
-              return Promise.resolve(add(data)).then(function (_add) {
-                data = _add;
-                return Promise.resolve(_this9.set({
-                  id,
-                  data,
-                  merge: false
-                })).then(function (_this9$set) {
-                  user = _this9$set;
-                });
-              });
-            }
-          }();
-
-          return _temp5 && _temp5.then ? _temp5.then(function () {
-            return user;
-          }) : user;
+      if (!user) {
+        data = await add(data);
+        user = await this.set({
+          id,
+          data,
+          merge: false
         });
-      } catch (e) {
-        return Promise.reject(e);
       }
+
+      return user;
     }
 
     findOneByField(field) {
@@ -868,77 +802,58 @@
       };
     }
 
-    set({
+    async set({
       id,
       data,
       merge = true,
       assert = false,
       get = true
     }) {
-      try {
-        const _this10 = this;
-
-        function _temp7() {
-          data = lodash.omit(data, 'id');
-
-          _this10._addUpdatedAt(data);
-
-          const ref = _this10.doc(id);
-
-          return Promise.resolve(ref.set(data, {
-            merge
-          })).then(function (set) {
-            return get ? _this10.get({
-              id
-            }) : set;
-          });
-        }
-
-        const _temp6 = function () {
-          if (assert) {
-            return Promise.resolve(_this10.existsAssert({
-              id
-            })).then(function () {});
-          }
-        }();
-
-        return Promise.resolve(_temp6 && _temp6.then ? _temp6.then(_temp7) : _temp7(_temp6));
-      } catch (e) {
-        return Promise.reject(e);
+      if (assert) {
+        await this.existsAssert({
+          id
+        });
       }
+
+      data = lodash.omit(data, 'id');
+
+      this._addUpdatedAt(data);
+
+      const ref = this.doc(id);
+      const set = await ref.set(data, {
+        merge
+      });
+      return get ? this.get({
+        id
+      }) : set;
     }
 
-    addOrSetByField({
+    async addOrSetByField({
       field,
       data,
       add = x => x
     }) {
-      try {
-        const _this11 = this;
+      const value = data[field];
+      const doc = await this.findOneByField(field)(value);
 
-        const value = data[field];
-        return Promise.resolve(_this11.findOneByField(field)(value)).then(function (doc) {
-          if (doc) {
-            const {
-              id
-            } = doc;
-            return _this11.set({
-              id,
-              data
-            });
-          } else {
-            return Promise.resolve(add(data)).then(function (_add2) {
-              data = _add2;
-              return _this11.add({
-                data
-              });
-            });
-          }
+      if (doc) {
+        const {
+          id
+        } = doc;
+        return this.set({
+          id,
+          data
         });
-      } catch (e) {
-        return Promise.reject(e);
+      } else {
+        data = await add(data);
+        return this.add({
+          data
+        });
       }
-    }
+    } /////////////
+    // Helpers //
+    /////////////
+
 
     _timestamp() {
       return this.Admin.firestore.FieldValue.serverTimestamp();
@@ -1039,20 +954,6 @@
     }
   }
 
-  function _catch(body, recover) {
-    try {
-      var result = body();
-    } catch (e) {
-      return recover(e);
-    }
-
-    if (result && result.then) {
-      return result.then(void 0, recover);
-    }
-
-    return result;
-  }
-
   function contextBuilder(_ref) {
     let {
       loadSession,
@@ -1061,73 +962,64 @@
     } = _ref,
         input_options = _objectWithoutPropertiesLoose(_ref, ["loadSession", "getToken", "start"]);
 
-    return function ({
+    return async ({
       req: request
-    } = {}) {
-      try {
-        const logger$1 = logger.child('contextBuilder');
-        return Promise.resolve(start()).then(function () {
-          function _temp2() {
-            return _extends({
-              session_id,
-              user_id,
-              user,
-              load_user_error,
-              getLoader
-            }, options);
-          }
+    } = {}) => {
+      // TODO: support serializers in logger
+      const logger$1 = logger.child('contextBuilder');
+      await start();
+      const options = addInstanceGetters(input_options);
+      const {
+        getCollection
+      } = options;
+      const loaders = {};
 
-          const options = addInstanceGetters(input_options);
-          const {
-            getCollection
-          } = options;
+      function getLoader(arg) {
+        const name = arg.name || arg;
 
-          function getLoader(arg) {
-            const name = arg.name || arg;
+        if (!(name in loaders)) {
+          const collection = getCollection(name);
+          loaders[name] = collection.loader;
+        }
 
-            if (!(name in loaders)) {
-              const collection = getCollection(name);
-              loaders[name] = collection.loader;
-            }
-
-            return loaders[name];
-          }
-
-          const loaders = {};
-          let session_id = null;
-          let user_id = null;
-          let user = null;
-          let load_user_error = null;
-
-          const _temp = _catch(function () {
-            logger$1.debug('Getting token');
-            const token = getToken$1(request);
-            logger$1.debug('Loading session');
-            return Promise.resolve(loadSession({
-              token,
-              getCollection,
-              getLoader
-            })).then(function (session) {
-              ({
-                session_id,
-                user_id,
-                user
-              } = session);
-              logger$1.debug('Loaded session', {
-                session_id,
-                user
-              });
-            });
-          }, function (error) {
-            logger$1.error('Error loading session', error);
-            load_user_error = error;
-          });
-
-          return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
-        });
-      } catch (e) {
-        return Promise.reject(e);
+        return loaders[name];
       }
+
+      let session_id = null;
+      let user_id = null;
+      let user = null;
+      let load_user_error = null;
+
+      try {
+        logger$1.debug('Getting token');
+        const token = getToken$1(request);
+        logger$1.debug('Loading session');
+        const session = await loadSession({
+          token,
+          getCollection,
+          getLoader
+        });
+        ({
+          session_id,
+          user_id,
+          user
+        } = session);
+        logger$1.debug('Loaded session', {
+          session_id,
+          user
+        });
+      } catch (error) {
+        logger$1.error('Error loading session', error);
+        load_user_error = error;
+      }
+
+      return _extends({
+        session_id,
+        user_id,
+        user,
+        load_user_error,
+        getLoader
+      }, options);
     };
   }
 
@@ -1141,6 +1033,15 @@
     if (oerror && oerror.expected) {
       data.code = oerror.code;
     } else {
+      // Handle context creation errors don't include original
+      // const missing = error.message.match(/Missing session user ([^\s]{24})/);
+      // let public_error;
+      // if (missing) {
+      //   const id = missing[1];
+      //   public_error = new Errors.SessionUserMissing({id});
+      // } else {
+      //   public_error = new Errors.Public();
+      // }
       const public_error = new GraphQLError();
       data = GraphQL.formatError(public_error);
       data.code = public_error.code;
@@ -1227,41 +1128,45 @@
     return server.createHandler(opts_handler);
   }
 
-  const directGraphqlRequest = function ({
+  // graphql(
+  //   schema: GraphQLSchema,
+  //   requestString: string,
+  //   rootValue?: ?any,
+  //   contextValue?: ?any,
+  //   variableValues?: ?{[key: string]: any},
+  //   operationName?: ?string
+  // ): Promise<GraphQLResult>
+
+  async function directGraphqlRequest({
     schema,
     context,
     query,
     variables
   }) {
-    try {
-      const rlogger = logger.child({
-        name: 'localGraphqlRequest',
-        query,
-        variables
-      });
-      rlogger.debug('Making request');
-      const root = {};
-      return Promise.resolve(GraphQL.graphql(schema, query, root, context, variables)).then(function (response) {
-        const {
-          data,
-          errors
-        } = response;
+    const rlogger = logger.child({
+      name: 'localGraphqlRequest',
+      query,
+      variables
+    });
+    rlogger.debug('Making request');
+    const root = {};
+    const response = await GraphQL.graphql(schema, query, root, context, variables);
+    const {
+      data,
+      errors
+    } = response;
 
-        if (errors) {
-          const error = errors[0];
-          rlogger.error(error);
-          throw error;
-        } else {
-          rlogger.debug('Got response', {
-            data
-          });
-          return data;
-        }
+    if (errors) {
+      const error = errors[0];
+      rlogger.error(error);
+      throw error;
+    } else {
+      rlogger.debug('Got response', {
+        data
       });
-    } catch (e) {
-      return Promise.reject(e);
+      return data;
     }
-  };
+  }
 
   function directGraphqlRequester({
     Schema,
@@ -1276,37 +1181,18 @@
       Scalars,
       options
     });
-    return function request({
+    return async function request({
       query,
       variables
     }) {
-      try {
-        return Promise.resolve(buildContext()).then(function (context) {
-          return directGraphqlRequest({
-            schema,
-            context,
-            query,
-            variables
-          });
-        });
-      } catch (e) {
-        return Promise.reject(e);
-      }
+      const context = await buildContext();
+      return directGraphqlRequest({
+        schema,
+        context,
+        query,
+        variables
+      });
     };
-  }
-
-  function _catch$1(body, recover) {
-    try {
-      var result = body();
-    } catch (e) {
-      return recover(e);
-    }
-
-    if (result && result.then) {
-      return result.then(void 0, recover);
-    }
-
-    return result;
   }
 
   function capitalize(str) {
@@ -1325,6 +1211,7 @@
         path: 'args.id'
       });
 
+      // Only initialize if options are passed (we skip when building schema)
       if (options) {
         initialize.call(this, _extends({
           namespace: 'GraphQLController'
@@ -1337,6 +1224,35 @@
     }
 
     resolvers() {
+      // Child class should implement this method and return
+      // an object with this shape:
+      //
+      // {
+      //   // Mutations resolved in this controller
+      //   Mutation: {
+      //     <MutationName>: {
+      //       resolver: Function,
+      //       authorizer: Function
+      //     }
+      //   },
+      //   // Queries resolved in this controller
+      //   Query: {
+      //     <QueryName>: {
+      //       resolver: Function,
+      //       authorizer: Function
+      //     }
+      //   },
+      //   // Type fields resolved in this controller
+      //   <TypeName>: {
+      //     <FieldName>: {
+      //       resolver: Function,
+      //       authorizer: Function
+      //     }
+      //   },
+      //   <UnionTypeName>: {
+      //     __resolveType: Function
+      //   }
+      // }
       throw new Error('Child class must implement .resolvers');
     }
 
@@ -1345,8 +1261,6 @@
     }
 
     expose() {
-      const _this = this;
-
       const {
         logger
       } = this;
@@ -1359,7 +1273,8 @@
         }
 
         for (const [name, definition] of Object.entries(group)) {
-          const path = `${type}.${name}`;
+          const path = `${type}.${name}`; // Resolve Union types
+          // https://www.apollographql.com/docs/graphql-tools/resolvers/#unions-and-interfaces
 
           if (name === APOLLO_UNION_RESOLVER_NAME) {
             result[type][name] = (obj, context, info) => {
@@ -1371,7 +1286,15 @@
             };
 
             continue;
-          }
+          } // This seems like a dumb idea unless there's some dynmamic thing that
+          // is difficult to do without this..
+          // let the resolvers and permission be specified as strings
+          // for (const [k, v] of Object.entries(config)) {
+          //   if (Type(v, String)) {
+          //     config[k] = this[v];
+          //   }
+          // }
+
 
           for (const field of ['authorizer', 'resolver']) {
             if (!lodash.isFunction(definition[field])) {
@@ -1384,62 +1307,60 @@
             authorizer
           } = definition;
 
-          result[type][name] = function (obj, args, context, info) {
+          result[type][name] = async (obj, args, context, info) => {
+            const {
+              user
+            } = context;
+            const params = {
+              obj,
+              args,
+              context,
+              info,
+              user
+            };
+            const rlogger = logger.child({
+              resolver: name,
+              type,
+              user,
+              obj,
+              args
+            });
+            rlogger.debug(`Calling resolver ${path}`);
+
             try {
+              // Have to handle this explicitly, would be better to have
+              // this in context build derp meh
               const {
-                user
+                load_user_error
               } = context;
-              const params = {
-                obj,
-                args,
-                context,
-                info,
-                user
-              };
-              const rlogger = logger.child({
-                resolver: name,
-                type,
-                user,
-                obj,
-                args
-              });
-              rlogger.debug(`Calling resolver ${path}`);
-              return Promise.resolve(_catch$1(function () {
-                const {
-                  load_user_error
-                } = context;
 
-                if (load_user_error) {
-                  throw load_user_error;
-                }
+              if (load_user_error) {
+                throw load_user_error;
+              }
 
-                return Promise.resolve(authorizer.call(_this, params)).then(function (authorized) {
-                  if (!authorized) {
-                    const error = new NotAuthorizedError({
-                      path
-                    });
-                    rlogger.error(error);
-                    throw error;
-                  }
+              const authorized = await authorizer.call(this, params);
 
-                  return Promise.resolve(resolver.call(_this, params)).then(function (result) {
-                    rlogger.info('Resolver result', {
-                      result
-                    });
-                    return result;
-                  });
+              if (!authorized) {
+                const error = new NotAuthorizedError({
+                  path
                 });
-              }, function (error) {
-                if (error.expected) {
-                  rlogger.error('Expected GraphQL error', error);
-                  throw error;
-                } else {
-                  rlogger.error(error);
-                  throw new GraphQLError();
-                }
-              }));
-            } catch (e) {
-              return Promise.reject(e);
+                rlogger.error(error);
+                throw error;
+              }
+
+              const result = await resolver.call(this, params);
+              rlogger.info('Resolver result', {
+                result
+              });
+              return result;
+            } catch (error) {
+              if (error.expected) {
+                rlogger.error('Expected GraphQL error', error);
+                throw error;
+              } else {
+                rlogger.error(error);
+                throw new GraphQLError();
+              }
             }
           };
         }
@@ -1517,46 +1438,30 @@
 
       const Loader = context.getLoader(type);
       return Loader.load(id);
-    }
+    } ///////////////////////
+    // Generic Resolvers //
+    ///////////////////////
 
-    delete(request) {
-      try {
-        const _this2 = this;
 
-        function _temp4() {
-          return Promise.resolve(_this2.collection.delete(request.args)).then(function (deleted) {
-            function _temp2() {
-              return {
-                deleted_at,
-                deleted
-              };
-            }
-
-            const deleted_at = new Date();
-
-            const _temp = function () {
-              if (_this2.afterDelete) {
-                return Promise.resolve(_this2.afterDelete(_extends({}, request, {
-                  deleted,
-                  deleted_at
-                }))).then(function () {});
-              }
-            }();
-
-            return _temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp);
-          });
-        }
-
-        const _temp3 = function () {
-          if (_this2.beforeDelete) {
-            return Promise.resolve(_this2.beforeDelete(request)).then(function () {});
-          }
-        }();
-
-        return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3));
-      } catch (e) {
-        return Promise.reject(e);
+    async delete(request) {
+      if (this.beforeDelete) {
+        await this.beforeDelete(request);
       }
+
+      const deleted = await this.collection.delete(request.args);
+      const deleted_at = new Date();
+
+      if (this.afterDelete) {
+        await this.afterDelete(_extends({}, request, {
+          deleted,
+          deleted_at
+        }));
+      }
+
+      return {
+        deleted_at,
+        deleted
+      };
     }
 
     _toCollection(method) {
@@ -1566,59 +1471,42 @@
     }
 
     _wrapToCollection(method) {
-      const _this3 = this;
-
       const cmethod = capitalize(method);
       const before = `before${cmethod}`;
       const after = `after${cmethod}`;
-      return function (request) {
-        try {
-          function _temp7() {
-            return Promise.resolve(_this3.collection[method](_extends({}, args, {
-              data
-            }))).then(function (doc) {
-              const _temp5 = function () {
-                if (_this3[after]) {
-                  return Promise.resolve(_this3[after](_extends({}, request, {
-                    data,
-                    doc
-                  }))).then(function (_this3$after) {
-                    doc = _this3$after;
-                  });
-                }
-              }();
+      return async request => {
+        const {
+          args
+        } = request;
+        let {
+          data
+        } = args;
 
-              return _temp5 && _temp5.then ? _temp5.then(function () {
-                return doc;
-              }) : doc;
-            });
-          }
-
-          const {
-            args
-          } = request;
-          let {
+        if (this[before]) {
+          data = await this[before](_extends({}, request, {
             data
-          } = args;
-
-          const _temp6 = function () {
-            if (_this3[before]) {
-              return Promise.resolve(_this3[before](_extends({}, request, {
-                data
-              }))).then(function (_this3$before) {
-                data = _this3$before;
-              });
-            }
-          }();
-
-          return Promise.resolve(_temp6 && _temp6.then ? _temp6.then(_temp7) : _temp7(_temp6));
-        } catch (e) {
-          return Promise.reject(e);
+          }));
         }
+
+        let doc = await this.collection[method](_extends({}, args, {
+          data
+        }));
+
+        if (this[after]) {
+          doc = await this[after](_extends({}, request, {
+            data,
+            doc
+          }));
+        }
+
+        return doc;
       };
     }
 
   }
+
+  // can be written to the shared package so we can use those instead of
+  // magic strings in the applications
 
   function processDefinitions(definitions) {
     const enums = {};
@@ -1688,7 +1576,8 @@
       enums,
       groups
     };
-  }
+  } // TODO: handle checking resolved type fields as well by using @ref directive
+
 
   function checkSchema({
     groups: schema_groups,
@@ -1792,20 +1681,6 @@
 
   }
 
-  function _catch$2(body, recover) {
-    try {
-      var result = body();
-    } catch (e) {
-      return recover(e);
-    }
-
-    if (result && result.then) {
-      return result.then(void 0, recover);
-    }
-
-    return result;
-  }
-
   class HttpHandler extends Handler {
     expose(app) {
       let actions = this.actions();
@@ -1838,44 +1713,33 @@
     }
 
     handle(action) {
-      const _this = this;
+      return async (request, response) => {
+        await this.start();
+        const {
+          params
+        } = request;
+        const logger = this.logger.child({
+          action,
+          params
+        });
 
-      return function (request, response) {
         try {
-          return Promise.resolve(_this.start()).then(function () {
-            const {
-              params
-            } = request;
-
-            const logger = _this.logger.child({
-              action,
-              params
-            });
-
-            return _catch$2(function () {
-              logger.info('Calling handler');
-
-              const method = _this[action].bind(_this);
-
-              return Promise.resolve(method({
-                params,
-                request,
-                response
-              })).then(function (data) {
-                logger.info('Handler success', {
-                  data
-                });
-                return response.json(data);
-              });
-            }, function (error) {
-              logger.error('Handler failure', error);
-              return response.status(error.status || 500).json({
-                error: error.message
-              });
-            });
+          logger.info('Calling handler');
+          const method = this[action].bind(this);
+          const data = await method({
+            params,
+            request,
+            response
           });
-        } catch (e) {
-          return Promise.reject(e);
+          logger.info('Handler success', {
+            data
+          });
+          return response.json(data);
+        } catch (error) {
+          logger.error('Handler failure', error);
+          return response.status(error.status || 500).json({
+            error: error.message
+          });
         }
       };
     }
@@ -1894,20 +1758,6 @@
     });
     const handler = new Handler(options);
     return handler.expose();
-  }
-
-  function _catch$3(body, recover) {
-    try {
-      var result = body();
-    } catch (e) {
-      return recover(e);
-    }
-
-    if (result && result.then) {
-      return result.then(void 0, recover);
-    }
-
-    return result;
   }
 
   class PubSubHandler extends Handler {
@@ -1936,44 +1786,33 @@
     }
 
     handle(action) {
-      const _this = this;
+      return async (message, context) => {
+        console.log('calling pubsub start...');
+        await this.start();
+        const {
+          json,
+          data,
+          attributes
+        } = message;
+        const logger = this.logger.child({
+          name: 'handle',
+          json,
+          attributes,
+          context
+        });
 
-      return function (message, context) {
         try {
-          console.log('calling pubsub start...');
-          return Promise.resolve(_this.start()).then(function () {
-            const {
-              json,
-              data,
-              attributes
-            } = message;
-
-            const logger = _this.logger.child({
-              name: 'handle',
-              json,
-              attributes,
-              context
-            });
-
-            const _temp = _catch$3(function () {
-              logger.info('Running handler');
-              const args = {
-                json,
-                data,
-                attributes,
-                context
-              };
-              return Promise.resolve(action.call(_this, args)).then(function (response) {
-                logger.info('Handler success', response);
-              });
-            }, function (error) {
-              logger.error('Handler failure', error);
-            });
-
-            if (_temp && _temp.then) return _temp.then(function () {});
-          });
-        } catch (e) {
-          return Promise.reject(e);
+          logger.info('Running handler');
+          const args = {
+            json,
+            data,
+            attributes,
+            context
+          };
+          const response = await action.call(this, args);
+          logger.info('Handler success', response);
+        } catch (error) {
+          logger.error('Handler failure', error);
         }
       };
     }

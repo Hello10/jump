@@ -1,8 +1,7 @@
 import { ApolloError, ApolloServer } from 'apollo-server-cloud-functions';
 import DataLoader from 'dataloader';
 import { compact, uniq, isObject, isNumber, omit, merge, isFunction, get, difference } from 'lodash';
-import Promise from 'bluebird';
-import { singleton } from '@hello10/util';
+import { mapp, singleton } from '@hello10/util';
 import Logger from '@hello10/logger';
 import { formatError as formatError$1, graphql } from 'graphql';
 import { makeExecutableSchema } from 'graphql-tools';
@@ -73,6 +72,39 @@ var Errors = {
   NotAuthorizedError: NotAuthorizedError
 };
 
+function _extends() {
+  _extends = Object.assign || function (target) {
+    for (var i = 1; i < arguments.length; i++) {
+      var source = arguments[i];
+
+      for (var key in source) {
+        if (Object.prototype.hasOwnProperty.call(source, key)) {
+          target[key] = source[key];
+        }
+      }
+    }
+
+    return target;
+  };
+
+  return _extends.apply(this, arguments);
+}
+
+function _objectWithoutPropertiesLoose(source, excluded) {
+  if (source == null) return {};
+  var target = {};
+  var sourceKeys = Object.keys(source);
+  var key, i;
+
+  for (i = 0; i < sourceKeys.length; i++) {
+    key = sourceKeys[i];
+    if (excluded.indexOf(key) >= 0) continue;
+    target[key] = source[key];
+  }
+
+  return target;
+}
+
 const logger = new Logger('jump');
 
 function initialize(options) {
@@ -102,32 +134,71 @@ function initialize(options) {
 
 class Collection {
   constructor(options) {
-    initialize.call(this, {
-      namespace: 'Collection',
-      ...options
-    });
+    initialize.call(this, _extends({
+      namespace: 'Collection'
+    }, options));
   }
 
   bucket(name) {
     return this.Admin.storage().bucket(name);
-  }
+  } // Leaf child classes MUST overide name getter that the name of the
+  // collection backing this collection
+  // ================================================================
+
 
   get name() {
     throw new Error('Collection child class must implement .name');
-  }
+  } // Implementation child classes MUST overide collection getter that
+  // returns a collection instance from the backing database
+  // ================================================================
+
 
   get collection() {
     throw new Error('Collection child class must implement .collection');
-  }
+  } // Implementation child classes MUST override unimplemented methods
+  // ================================================================
+  // create    ({data})
+  // exists    ({id, assert = false})
+  // get       ({id, assert = false})
+  // getAll    ({ids, assert = false})
+  // find      ({query, limit, sort, at, after, select} = {})
+  // update    ({id, data, merge = true, assert = false})
+  // delete    ({id, assert = true})
+  // deleteAll ({ids})
+  //
+  // Child classes MAY override implemented CRUD methods
+  // ================================================================
+  // createAll       ({datas})
+  // findOrCreate    ({query, data})
+  // existsAssert    ({id})
+  // existsAll       ({ids, assert = false})
+  // existsAllAssert ({ids})
+  // getAssert       ({id})
+  // getAllAssert    ({ids})
+  // findOne         ({query, sort, select})
+  // findIds         ({query})
+  // list            ({limit, sort, at, after} = {})
+  // updateAssert    ({id, data, merge = true})
+  // updateAll       ({ids, data, merge = true, assert = false})
+  // updateAllAssert ({ids, data, merge = true})
+  // updateMany      ({query, data, merge = true})
+  // deleteAssert    ({id})
+  // deleteMany      ({query})
+  /////////////////
+  // Core:Create //
+  /////////////////
 
-  create() {
+
+  create()
+  /* {data} */
+  {
     throw new Error('Collection child class must implement .create');
   }
 
   createAll({
     datas
   }) {
-    return Promise.map(datas, data => this.create({
+    return mapp(datas, data => this.create({
       data
     }));
   }
@@ -142,9 +213,14 @@ class Collection {
     return doc || this.create({
       data
     });
-  }
+  } ///////////////
+  // Core:Read //
+  ///////////////
 
-  exists() {
+
+  exists()
+  /* {id, assert = false} */
+  {
     throw new Error('Collection child class must implement .exists');
   }
 
@@ -177,7 +253,9 @@ class Collection {
     });
   }
 
-  get() {
+  get()
+  /* {id, assert = false} */
+  {
     throw new Error('Collection child class must implement .get');
   }
 
@@ -190,7 +268,9 @@ class Collection {
     });
   }
 
-  getAll() {
+  getAll()
+  /* {ids, assert = false} */
+  {
     throw new Error('Collection child class must implement .getAll');
   }
 
@@ -203,7 +283,9 @@ class Collection {
     });
   }
 
-  find() {
+  find()
+  /* {query, limit, sort, at, after, select} = {} */
+  {
     throw new Error('Collection child class must implement .find');
   }
 
@@ -245,9 +327,14 @@ class Collection {
       at,
       after
     });
-  }
+  } /////////////////
+  // Core:Update //
+  /////////////////
 
-  update() {
+
+  update()
+  /* {id, data, merge = true, assert = false} */
+  {
     throw new Error('Collection child class must implement .update');
   }
 
@@ -272,7 +359,7 @@ class Collection {
   }) {
     this._addUpdatedAt(data);
 
-    return Promise.map(ids, id => {
+    return mapp(ids, id => {
       return this.update({
         id,
         data,
@@ -308,9 +395,14 @@ class Collection {
       data,
       merge
     });
-  }
+  } /////////////////
+  // Core:Delete //
+  /////////////////
 
-  delete() {
+
+  delete()
+  /* {id, assert = true} */
+  {
     throw new Error('Collection child class must implement .delete');
   }
 
@@ -323,7 +415,9 @@ class Collection {
     });
   }
 
-  deleteAll() {
+  deleteAll()
+  /* {ids} */
+  {
     throw new Error('Collection child class must implement .deleteAll');
   }
 
@@ -336,7 +430,10 @@ class Collection {
     return this.deleteAll({
       ids
     });
-  }
+  } /////////////
+  // Loaders //
+  /////////////
+
 
   get loader() {
     var _this = this;
@@ -368,7 +465,10 @@ class Collection {
     };
 
     return loader;
-  }
+  } /////////////
+  // Helpers //
+  /////////////
+
 
   _timestamp() {
     return new Date();
@@ -455,7 +555,10 @@ class FirestoreCollection extends Collection {
 
   doc(id) {
     return this.collection.doc(id);
-  }
+  } /////////////////
+  // Core:Create //
+  /////////////////
+
 
   async create({
     data
@@ -463,7 +566,10 @@ class FirestoreCollection extends Collection {
     return this.add({
       data
     });
-  }
+  } ///////////////
+  // Core:Read //
+  ///////////////
+
 
   async exists({
     id,
@@ -616,11 +722,17 @@ class FirestoreCollection extends Collection {
 
     const snap = await cursor.get();
     return snap.docs.map(this._snapToDoc);
-  }
+  } /////////////////
+  // Core:Update //
+  /////////////////
+
 
   async update(args) {
     return this.set(args);
-  }
+  } /////////////////
+  // Core:Delete //
+  /////////////////
+
 
   async delete({
     id,
@@ -647,7 +759,10 @@ class FirestoreCollection extends Collection {
     }
 
     return batch.commit();
-  }
+  } ///////////////
+  // Auxiliary //
+  ///////////////
+
 
   async add({
     data
@@ -738,7 +853,10 @@ class FirestoreCollection extends Collection {
         data
       });
     }
-  }
+  } /////////////
+  // Helpers //
+  /////////////
+
 
   _timestamp() {
     return this.Admin.firestore.FieldValue.serverTimestamp();
@@ -806,11 +924,13 @@ function addInstanceGetters(input) {
     name: 'addInstanceGetters',
     input
   });
+
   const {
     Services,
-    Collections,
-    ...options
-  } = input;
+    Collections
+  } = input,
+        options = _objectWithoutPropertiesLoose(input, ["Services", "Collections"]);
+
   options.getService = instanceGetter({
     Constructors: Services,
     options
@@ -837,15 +957,18 @@ function getToken(request) {
   }
 }
 
-function contextBuilder({
-  loadSession,
-  getToken: getToken$1 = getToken,
-  start = () => {},
-  ...input_options
-}) {
+function contextBuilder(_ref) {
+  let {
+    loadSession,
+    getToken: getToken$1 = getToken,
+    start = () => {}
+  } = _ref,
+      input_options = _objectWithoutPropertiesLoose(_ref, ["loadSession", "getToken", "start"]);
+
   return async ({
     req: request
   } = {}) => {
+    // TODO: support serializers in logger
     const logger$1 = logger.child('contextBuilder');
     await start();
     const options = addInstanceGetters(input_options);
@@ -893,14 +1016,13 @@ function contextBuilder({
       load_user_error = error;
     }
 
-    return {
+    return _extends({
       session_id,
       user_id,
       user,
       load_user_error,
-      getLoader,
-      ...options
-    };
+      getLoader
+    }, options);
   };
 }
 
@@ -914,6 +1036,15 @@ function formatError(error) {
   if (oerror && oerror.expected) {
     data.code = oerror.code;
   } else {
+    // Handle context creation errors don't include original
+    // const missing = error.message.match(/Missing session user ([^\s]{24})/);
+    // let public_error;
+    // if (missing) {
+    //   const id = missing[1];
+    //   public_error = new Errors.SessionUserMissing({id});
+    // } else {
+    //   public_error = new Errors.Public();
+    // }
     const public_error = new GraphQLError();
     data = formatError$1(public_error);
     data.code = public_error.code;
@@ -991,14 +1122,23 @@ function createGraphqlHandler({
     opts_server.formatError = formatError;
   }
 
-  const server = new ApolloServer({ ...opts_server,
+  const server = new ApolloServer(_extends({}, opts_server, {
     schema
-  });
+  }));
   logger$1.debug('Creating GraphQL handler', {
     options: opts_handler
   });
   return server.createHandler(opts_handler);
 }
+
+// graphql(
+//   schema: GraphQLSchema,
+//   requestString: string,
+//   rootValue?: ?any,
+//   contextValue?: ?any,
+//   variableValues?: ?{[key: string]: any},
+//   operationName?: ?string
+// ): Promise<GraphQLResult>
 
 async function directGraphqlRequest({
   schema,
@@ -1074,11 +1214,11 @@ class GraphQLController {
       path: 'args.id'
     });
 
+    // Only initialize if options are passed (we skip when building schema)
     if (options) {
-      initialize.call(this, {
-        namespace: 'GraphQLController',
-        ...options
-      });
+      initialize.call(this, _extends({
+        namespace: 'GraphQLController'
+      }, options));
     }
   }
 
@@ -1087,6 +1227,35 @@ class GraphQLController {
   }
 
   resolvers() {
+    // Child class should implement this method and return
+    // an object with this shape:
+    //
+    // {
+    //   // Mutations resolved in this controller
+    //   Mutation: {
+    //     <MutationName>: {
+    //       resolver: Function,
+    //       authorizer: Function
+    //     }
+    //   },
+    //   // Queries resolved in this controller
+    //   Query: {
+    //     <QueryName>: {
+    //       resolver: Function,
+    //       authorizer: Function
+    //     }
+    //   },
+    //   // Type fields resolved in this controller
+    //   <TypeName>: {
+    //     <FieldName>: {
+    //       resolver: Function,
+    //       authorizer: Function
+    //     }
+    //   },
+    //   <UnionTypeName>: {
+    //     __resolveType: Function
+    //   }
+    // }
     throw new Error('Child class must implement .resolvers');
   }
 
@@ -1109,7 +1278,8 @@ class GraphQLController {
       }
 
       for (const [name, definition] of Object.entries(group)) {
-        const path = `${type}.${name}`;
+        const path = `${type}.${name}`; // Resolve Union types
+        // https://www.apollographql.com/docs/graphql-tools/resolvers/#unions-and-interfaces
 
         if (name === APOLLO_UNION_RESOLVER_NAME) {
           result[type][name] = (obj, context, info) => {
@@ -1121,7 +1291,15 @@ class GraphQLController {
           };
 
           continue;
-        }
+        } // This seems like a dumb idea unless there's some dynmamic thing that
+        // is difficult to do without this..
+        // let the resolvers and permission be specified as strings
+        // for (const [k, v] of Object.entries(config)) {
+        //   if (Type(v, String)) {
+        //     config[k] = this[v];
+        //   }
+        // }
+
 
         for (const field of ['authorizer', 'resolver']) {
           if (!isFunction(definition[field])) {
@@ -1155,6 +1333,8 @@ class GraphQLController {
           rlogger.debug(`Calling resolver ${path}`);
 
           try {
+            // Have to handle this explicitly, would be better to have
+            // this in context build derp meh
             const {
               load_user_error
             } = context;
@@ -1232,9 +1412,9 @@ class GraphQLController {
       data,
       context
     }) => {
-      return { ...data,
+      return _extends({}, data, {
         [key]: context.user.id
-      };
+      });
     };
   }
 
@@ -1263,7 +1443,10 @@ class GraphQLController {
 
     const Loader = context.getLoader(type);
     return Loader.load(id);
-  }
+  } ///////////////////////
+  // Generic Resolvers //
+  ///////////////////////
+
 
   async delete(request) {
     if (this.beforeDelete) {
@@ -1274,10 +1457,10 @@ class GraphQLController {
     const deleted_at = new Date();
 
     if (this.afterDelete) {
-      await this.afterDelete({ ...request,
+      await this.afterDelete(_extends({}, request, {
         deleted,
         deleted_at
-      });
+      }));
     }
 
     return {
@@ -1307,20 +1490,20 @@ class GraphQLController {
       } = args;
 
       if (_this2[before]) {
-        data = await _this2[before]({ ...request,
+        data = await _this2[before](_extends({}, request, {
           data
-        });
+        }));
       }
 
-      let doc = await _this2.collection[method]({ ...args,
+      let doc = await _this2.collection[method](_extends({}, args, {
         data
-      });
+      }));
 
       if (_this2[after]) {
-        doc = await _this2[after]({ ...request,
+        doc = await _this2[after](_extends({}, request, {
           data,
           doc
-        });
+        }));
       }
 
       return doc;
@@ -1328,6 +1511,9 @@ class GraphQLController {
   }
 
 }
+
+// can be written to the shared package so we can use those instead of
+// magic strings in the applications
 
 function processDefinitions(definitions) {
   const enums = {};
@@ -1397,7 +1583,8 @@ function processDefinitions(definitions) {
     enums,
     groups
   };
-}
+} // TODO: handle checking resolved type fields as well by using @ref directive
+
 
 function checkSchema({
   groups: schema_groups,
@@ -1475,15 +1662,16 @@ function createHttpHandler({
 }
 
 class Handler {
-  constructor({
-    start,
-    ...options
-  }) {
+  constructor(_ref) {
+    let {
+      start
+    } = _ref,
+        options = _objectWithoutPropertiesLoose(_ref, ["start"]);
+
     this.start = start;
-    initialize.call(this, {
-      namespace: 'Handler',
-      ...options
-    });
+    initialize.call(this, _extends({
+      namespace: 'Handler'
+    }, options));
   }
 
   get name() {

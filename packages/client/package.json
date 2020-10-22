@@ -21,16 +21,16 @@
     "@hello10/logger": "0.0.8",
     "@hello10/react-hooks": "1.2.4",
     "babel-polyfill": "6.26.0",
-    "deep-equal": "2.0.3",
-    "graphql-tag": "2.10.3",
+    "deep-equal": "2.0.4",
+    "graphql-tag": "2.11.0",
     "groutcho": "3.1.1",
     "prop-types": "15.7.2"
   },
   "devDependencies": {
-    "@apollo/client": "3.2.2",
+    "@apollo/client": "3.2.5",
     "@hello10/eslint-config-react": "1.0.2",
-    "eslint-plugin-react": "7.19.0",
-    "firebase": "7.14.2",
+    "eslint-plugin-react": "7.21.5",
+    "firebase": "7.24.0",
     "react": "16.9.0",
     "react-dom": "16.9.0"
   },

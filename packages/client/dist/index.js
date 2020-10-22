@@ -218,49 +218,6 @@ ApplicationContainer.propTypes = {
   useSession: PropTypes.func
 };
 
-const mapp = function (iterable, map, options = {}) {
-  try {
-    let concurrency = options.concurrency || Infinity;
-    let index = 0;
-    const results = [];
-    const runs = [];
-    const iterator = iterable[Symbol.iterator]();
-    const sentinel = Symbol('sentinel');
-
-    function run() {
-      const {
-        done,
-        value
-      } = iterator.next();
-
-      if (done) {
-        return sentinel;
-      } else {
-        const i = index++;
-        const p = map(value, i);
-        return Promise.resolve(p).then(result => {
-          results[i] = result;
-          return run();
-        });
-      }
-    }
-
-    while (concurrency-- > 0) {
-      const r = run();
-
-      if (r === sentinel) {
-        break;
-      } else {
-        runs.push(r);
-      }
-    }
-
-    return Promise.all(runs).then(() => results);
-  } catch (e) {
-    return Promise.reject(e);
-  }
-};
-
 function buildEnum(types) {
   return types.reduce((Types, type) => {
     Types[type] = type;
@@ -324,21 +281,46 @@ for (const [k, v] of Object.entries(types)) {
 }
 
 const indexById = indexer();
-var mapp_1 = mapp;
 
-function _catch(body, recover) {
-  try {
-    var result = body();
-  } catch (e) {
-    return recover(e);
+async function mapp(iterable, map, options = {}) {
+  let concurrency = options.concurrency || Infinity;
+  let index = 0;
+  const results = [];
+  const runs = [];
+  const iterator = iterable[Symbol.iterator]();
+  const sentinel = Symbol('sentinel');
+
+  while (concurrency-- > 0) {
+    const r = run();
+
+    if (r === sentinel) {
+      break;
+    } else {
+      runs.push(r);
+    }
   }
 
-  if (result && result.then) {
-    return result.then(void 0, recover);
+  function run() {
+    const {
+      done,
+      value
+    } = iterator.next();
+
+    if (done) {
+      return sentinel;
+    } else {
+      const i = index++;
+      const p = map(value, i);
+      return Promise.resolve(p).then(result => {
+        results[i] = result;
+        return run();
+      });
+    }
   }
 
-  return result;
+  return Promise.all(runs).then(() => results);
 }
+var mapp_1 = mapp;
 
 class Session extends reactHooks.useSingleton.Singleton {
   initialize() {
@@ -399,78 +381,52 @@ class Session extends reactHooks.useSingleton.Singleton {
     return mapp_1(this.Firebase.apps, fn);
   }
 
-  load() {
-    try {
-      const _this = this;
-
-      _this.logger.debug('Loading session');
-
-      return Promise.resolve(_this._change(function () {
-        try {
-          return Promise.resolve(_this.client.loadAuth()).then(function () {
-            return Promise.resolve(_this.SessionUser.load()).then(function (user) {
-              _this.logger.debug('Session loaded', {
-                user
-              });
-
-              return {
-                user,
-                loaded: true
-              };
-            });
-          });
-        } catch (e) {
-          return Promise.reject(e);
-        }
-      }));
-    } catch (e) {
-      return Promise.reject(e);
-    }
+  async load() {
+    this.logger.debug('Loading session');
+    return this._change(async () => {
+      await this.client.loadAuth();
+      const user = await this.SessionUser.load();
+      this.logger.debug('Session loaded', {
+        user
+      });
+      return {
+        user,
+        loaded: true
+      };
+    });
   }
 
   unload() {}
 
   start(args) {
-    const _this2 = this;
-
     this.logger.debug('Starting session');
-    return this._change(function () {
-      try {
-        return Promise.resolve(_this2.SessionUser.start(args)).then(function ({
-          user,
-          auth
-        }) {
-          _this2.logger.debug('Session started, setting auth', {
-            user
-          });
+    return this._change(async () => {
+      const {
+        user,
+        auth
+      } = await this.SessionUser.start(args);
+      this.logger.debug('Session started, setting auth', {
+        user
+      });
+      await this.client.setAuth(auth);
+      await this.apps(app => {
+        const app_token = auth.app_tokens.find(({
+          name
+        }) => name === app.name);
 
-          return Promise.resolve(_this2.client.setAuth(auth)).then(function () {
-            return Promise.resolve(_this2.apps(app => {
-              const app_token = auth.app_tokens.find(({
-                name
-              }) => name === app.name);
+        if (!app_token) {
+          return null;
+        }
 
-              if (!app_token) {
-                return null;
-              }
-
-              return app.auth().signInWithCustomToken(app_token.token);
-            })).then(function () {
-              return {
-                user
-              };
-            });
-          });
-        });
-      } catch (e) {
-        return Promise.reject(e);
-      }
+        return app.auth().signInWithCustomToken(app_token.token);
+      });
+      return {
+        user
+      };
     });
   }
 
   refresh() {
-    const _this3 = this;
-
     const {
       SessionUser
     } = this;
@@ -481,139 +437,85 @@ class Session extends reactHooks.useSingleton.Singleton {
     }
 
     this.logger.debug('Refreshing session');
-    return this._change(function () {
-      try {
-        const {
-          client
-        } = _this3;
-        return Promise.resolve(client.loadAuth()).then(function (client_auth) {
-          return Promise.resolve(SessionUser.refresh(client_auth)).then(function (data) {
-            const {
-              user,
-              auth
-            } = data;
-
-            _this3.logger.debug('Session refreshed, setting auth', {
-              user
-            });
-
-            return Promise.resolve(client.setAuth(auth)).then(function () {
-              return {
-                user
-              };
-            });
-          });
-        });
-      } catch (e) {
-        return Promise.reject(e);
-      }
+    return this._change(async () => {
+      const {
+        client
+      } = this;
+      const client_auth = await client.loadAuth();
+      const data = await SessionUser.refresh(client_auth);
+      const {
+        user,
+        auth
+      } = data;
+      this.logger.debug('Session refreshed, setting auth', {
+        user
+      });
+      await client.setAuth(auth);
+      return {
+        user
+      };
     });
   }
 
   end(args) {
-    const _this4 = this;
-
     const {
       SessionUser
     } = this;
     this.logger.debug('Ending session');
-    return this._change(function () {
+    return this._change(async () => {
       try {
-        function _temp2() {
-          return Promise.resolve(_this4.client.clearAuth()).then(function () {
-            return Promise.resolve(_this4.apps(app => {
-              app.auth().signOut();
-            })).then(function () {
-              const user = new SessionUser();
-              return {
-                user
-              };
-            });
-          });
-        }
-
-        const _temp = _catch(function () {
-          return Promise.resolve(SessionUser.end(args)).then(function () {
-            _this4.logger.debug('Session ended');
-          });
-        }, function (error) {
-          _this4.logger.error('Error ending session', error);
-        });
-
-        return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
-      } catch (e) {
-        return Promise.reject(e);
+        await SessionUser.end(args);
+        this.logger.debug('Session ended');
+      } catch (error) {
+        this.logger.error('Error ending session', error);
       }
+
+      await this.client.clearAuth();
+      await this.apps(app => {
+        app.auth().signOut();
+      });
+      const user = new SessionUser();
+      return {
+        user
+      };
     });
   }
 
-  _change(action) {
-    try {
-      const _this5 = this;
+  async _change(action) {
+    if (!this.changing) {
+      this.setState({
+        changing: true
+      });
+    }
 
-      if (!_this5.changing) {
-        _this5.setState({
-          changing: true
-        });
+    try {
+      const state = await action();
+      this.setState(_extends({
+        changing: false,
+        error: null
+      }, state));
+    } catch (error) {
+      this.logger.error('Session error', {
+        error
+      });
+      let {
+        user
+      } = this;
+
+      if (this.shouldEndSessionOnError(error)) {
+        this.logger.debug('Clearing session on error');
+        await this.client.clearAuth();
+        user = null;
       }
 
-      const _temp5 = _catch(function () {
-        return Promise.resolve(action()).then(function (state) {
-          _this5.setState(_extends({
-            changing: false,
-            error: null
-          }, state));
-        });
-      }, function (error) {
-        function _temp4() {
-          _this5.setState({
-            changing: false,
-            user,
-            error
-          });
-        }
-
-        _this5.logger.error('Session error', {
-          error
-        });
-
-        let {
-          user
-        } = _this5;
-
-        const _temp3 = function () {
-          if (_this5.shouldEndSessionOnError(error)) {
-            _this5.logger.debug('Clearing session on error');
-
-            return Promise.resolve(_this5.client.clearAuth()).then(function () {
-              user = null;
-            });
-          }
-        }();
-
-        return _temp3 && _temp3.then ? _temp3.then(_temp4) : _temp4(_temp3);
+      this.setState({
+        changing: false,
+        user,
+        error
       });
-
-      return Promise.resolve(_temp5 && _temp5.then ? _temp5.then(function () {}) : void 0);
-    } catch (e) {
-      return Promise.reject(e);
     }
   }
 
-}
-
-function _catch$1(body, recover) {
-  try {
-    var result = body();
-  } catch (e) {
-    return recover(e);
-  }
-
-  if (result && result.then) {
-    return result.then(void 0, recover);
-  }
-
-  return result;
 }
 
 class FirebaseSession extends Session {
@@ -621,235 +523,125 @@ class FirebaseSession extends Session {
     return this.Firebase.auth();
   }
 
-  load() {
-    try {
-      const _this = this;
-
-      _this.logger.debug('Loading session');
-
-      _this.setState({
-        changing: true
+  async load() {
+    this.logger.debug('Loading session');
+    this.setState({
+      changing: true
+    });
+    const {
+      SessionUser,
+      client
+    } = this;
+    this.unsubscribe = this.auth.onAuthStateChanged(async firebase_user => {
+      this.logger.debug('Firebase auth state changed', {
+        firebase_user
       });
+      await this._change(async () => {
+        let user;
 
-      const {
-        SessionUser,
-        client
-      } = _this;
-      _this.unsubscribe = _this.auth.onAuthStateChanged(function (firebase_user) {
-        try {
-          _this.logger.debug('Firebase auth state changed', {
+        if (firebase_user) {
+          this.logger.debug('Getting firebase user token');
+          const token = await firebase_user.getIdToken(true);
+          client.setAuth({
+            token
+          });
+          this.logger.debug('Loading session user');
+          user = await SessionUser.load({
+            client,
+            token,
             firebase_user
           });
-
-          return Promise.resolve(_this._change(function () {
-            try {
-              function _temp2() {
-                return {
-                  user,
-                  loaded: true
-                };
-              }
-
-              let user;
-
-              const _temp = function () {
-                if (firebase_user) {
-                  _this.logger.debug('Getting firebase user token');
-
-                  return Promise.resolve(firebase_user.getIdToken(true)).then(function (token) {
-                    client.setAuth({
-                      token
-                    });
-
-                    _this.logger.debug('Loading session user');
-
-                    return Promise.resolve(SessionUser.load({
-                      client,
-                      token,
-                      firebase_user
-                    })).then(function (_SessionUser$load) {
-                      user = _SessionUser$load;
-                    });
-                  });
-                } else {
-                  _this.logger.debug('No firebase user clearing session');
-
-                  return Promise.resolve(client.clearAuth()).then(function () {
-                    user = new SessionUser();
-                  });
-                }
-              }();
-
-              return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
-            } catch (e) {
-              return Promise.reject(e);
-            }
-          })).then(function () {});
-        } catch (e) {
-          return Promise.reject(e);
+        } else {
+          this.logger.debug('No firebase user clearing session');
+          await client.clearAuth();
+          user = new SessionUser();
         }
+
+        return {
+          user,
+          loaded: true
+        };
       });
-      return Promise.resolve();
-    } catch (e) {
-      return Promise.reject(e);
-    }
+    });
   }
 
-  unload() {
-    try {
-      const _this2 = this;
-
-      _this2.logger.debug('Unsubscribing from Firebase auth listener');
-
-      _this2.unsubscribe();
-
-      return Promise.resolve();
-    } catch (e) {
-      return Promise.reject(e);
-    }
+  async unload() {
+    this.logger.debug('Unsubscribing from Firebase auth listener');
+    this.unsubscribe();
   }
 
-  start({
+  async start({
     email,
     password,
     provider: provider_name,
     popup = false
   }) {
+    const provider_method = popup ? 'signInWithPopup' : 'signInWithRedirect';
+    const dedicated_providers = ['Google', 'Facebook', 'Twitter', 'Github'];
+    const oauth_providers = ['Yahoo', 'Microsoft', 'Apple'];
+
+    function invalidMode() {
+      throw new Error(`Invalid auth mode: ${provider_name}`);
+    }
+
+    const {
+      Firebase,
+      auth
+    } = this;
+
     try {
-      const _this3 = this;
+      let credential;
 
-      const provider_method = popup ? 'signInWithPopup' : 'signInWithRedirect';
-      const dedicated_providers = ['Google', 'Facebook', 'Twitter', 'Github'];
-
-      function invalidMode() {
-        throw new Error(`Invalid auth mode: ${provider_name}`);
+      if (provider_name.includes('Email')) {
+        if (provider_name === 'EmailSignin') {
+          this.logger.debug('Signing in with email', {
+            email
+          });
+          credential = await auth.signInWithEmailAndPassword(email, password);
+        } else if (provider_name === 'EmailSignup') {
+          this.logger.debug('Signing up with email', {
+            email
+          });
+          credential = await auth.createUserWithEmailAndPassword(email, password);
+          this.logger.debug('Sending session email verification');
+          await credential.user.sendEmailVerification();
+        } else {
+          invalidMode();
+        }
+      } else if (dedicated_providers.includes(provider_name)) {
+        const Provider = Firebase.auth[`${provider_name}AuthProvider`];
+        const provider = new Provider();
+        this.logger.debug('Authorizing via dedicated provider', {
+          provider_name,
+          provider_method
+        });
+        credential = await auth[provider_method](provider);
+      } else if (oauth_providers.includes(provider_name)) {
+        const domain = `${provider_name.toLowerCase()}.com`;
+        const provider = new Firebase.auth.OAuthProvider(domain);
+        this.logger.debug('Authorizing via OAuth provider', {
+          domain,
+          provider_method
+        });
+        credential = await auth[provider_method](provider);
+      } else {
+        invalidMode();
       }
 
-      const oauth_providers = ['Yahoo', 'Microsoft', 'Apple'];
-      const {
-        Firebase,
-        auth
-      } = _this3;
-      return Promise.resolve(_catch$1(function () {
-        let credential;
-
-        const _temp7 = function () {
-          if (provider_name.includes('Email')) {
-            const _temp4 = function () {
-              if (provider_name === 'EmailSignin') {
-                _this3.logger.debug('Signing in with email', {
-                  email
-                });
-
-                return Promise.resolve(auth.signInWithEmailAndPassword(email, password)).then(function (_auth$signInWithEmail) {
-                  credential = _auth$signInWithEmail;
-                });
-              } else {
-                const _temp3 = function () {
-                  if (provider_name === 'EmailSignup') {
-                    _this3.logger.debug('Signing up with email', {
-                      email
-                    });
-
-                    return Promise.resolve(auth.createUserWithEmailAndPassword(email, password)).then(function (_auth$createUserWithE) {
-                      credential = _auth$createUserWithE;
-
-                      _this3.logger.debug('Sending session email verification');
-
-                      return Promise.resolve(credential.user.sendEmailVerification()).then(function () {});
-                    });
-                  } else {
-                    invalidMode();
-                  }
-                }();
-
-                if (_temp3 && _temp3.then) return _temp3.then(function () {});
-              }
-            }();
-
-            if (_temp4 && _temp4.then) return _temp4.then(function () {});
-          } else {
-            const _temp6 = function () {
-              if (dedicated_providers.includes(provider_name)) {
-                const Provider = Firebase.auth[`${provider_name}AuthProvider`];
-                const provider = new Provider();
-
-                _this3.logger.debug('Authorizing via dedicated provider', {
-                  provider_name,
-                  provider_method
-                });
-
-                return Promise.resolve(auth[provider_method](provider)).then(function (_auth$provider_method) {
-                  credential = _auth$provider_method;
-                });
-              } else {
-                const _temp5 = function () {
-                  if (oauth_providers.includes(provider_name)) {
-                    const domain = `${provider_name.toLowerCase()}.com`;
-                    const provider = new Firebase.auth.OAuthProvider(domain);
-
-                    _this3.logger.debug('Authorizing via OAuth provider', {
-                      domain,
-                      provider_method
-                    });
-
-                    return Promise.resolve(auth[provider_method](provider)).then(function (_auth$provider_method2) {
-                      credential = _auth$provider_method2;
-                    });
-                  } else {
-                    invalidMode();
-                  }
-                }();
-
-                if (_temp5 && _temp5.then) return _temp5.then(function () {});
-              }
-            }();
-
-            if (_temp6 && _temp6.then) return _temp6.then(function () {});
-          }
-        }();
-
-        return _temp7 && _temp7.then ? _temp7.then(function () {
-          return credential;
-        }) : credential;
-      }, function (error) {
-        _this3.logger.debug('Error authenticating', error);
-
-        throw error;
-      }));
-    } catch (e) {
-      return Promise.reject(e);
+      return credential;
+    } catch (error) {
+      this.logger.debug('Error authenticating', error);
+      throw error;
     }
   }
 
-  end() {
-    try {
-      const _this4 = this;
-
-      _this4.setState({
-        changing: true
-      });
-
-      return Promise.resolve(_this4.auth.signOut());
-    } catch (e) {
-      return Promise.reject(e);
-    }
+  async end() {
+    this.setState({
+      changing: true
+    });
+    return this.auth.signOut();
   }
 
-}
-
-function _catch$2(body, recover) {
-  try {
-    var result = body();
-  } catch (e) {
-    return recover(e);
-  }
-
-  if (result && result.then) {
-    return result.then(void 0, recover);
-  }
-
-  return result;
 }
 
 const NO_SESSION = {
@@ -864,73 +656,6 @@ function getClient({
   options = {},
   cache_options = {}
 }) {
-  const clearAuth = function () {
-    try {
-      logger$1.debug('Clearing session auth');
-      setAuth(NO_SESSION);
-      return Promise.resolve();
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  };
-
-  const loadAuth = function () {
-    try {
-      if (!storage) {
-        throw new Error('No storage specified to load auth from');
-      }
-
-      logger$1.debug('Loading session auth');
-      return Promise.resolve(readAuthFromStorage()).then(function (_readAuthFromStorage) {
-        auth = _readAuthFromStorage;
-        return auth;
-      });
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  };
-
-  const setAuth = function (new_auth) {
-    try {
-      function _temp5() {
-        auth = new_auth;
-      }
-
-      logger$1.debug('Setting session auth');
-
-      const _temp4 = function () {
-        if (storage) {
-          return Promise.resolve(writeAuthToStorage(new_auth)).then(function () {});
-        }
-      }();
-
-      return Promise.resolve(_temp4 && _temp4.then ? _temp4.then(_temp5) : _temp5(_temp4));
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  };
-
-  const readAuthFromStorage = function () {
-    try {
-      logger$1.debug('Reading auth from storage');
-      let auth;
-
-      const _temp3 = _catch$2(function () {
-        return Promise.resolve(storage.getItem(storage_key)).then(function (json) {
-          auth = JSON.parse(json) || NO_SESSION;
-        });
-      }, function () {
-        auth = NO_SESSION;
-      });
-
-      return Promise.resolve(_temp3 && _temp3.then ? _temp3.then(function () {
-        return auth;
-      }) : auth);
-    } catch (e) {
-      return Promise.reject(e);
-    }
-  };
-
   const logger$1 = logger.child({
     name: 'getClient',
     uri
@@ -939,37 +664,27 @@ function getClient({
   const http_link = new client.HttpLink({
     uri
   });
-  const auth_link = context.setContext(function (request, prev_context) {
-    try {
-      function _temp2() {
-        const {
-          token
-        } = auth;
+  const auth_link = context.setContext(async (request, prev_context) => {
+    const {
+      headers = {}
+    } = prev_context;
 
-        if (token) {
-          logger$1.debug('Adding auth token to header');
-          headers.authorization = token ? `Bearer ${token}` : '';
-        }
-
-        return {
-          headers
-        };
-      }
-
-      const {
-        headers = {}
-      } = prev_context;
-
-      const _temp = function () {
-        if (!auth) {
-          return Promise.resolve(loadAuth()).then(function () {});
-        }
-      }();
-
-      return Promise.resolve(_temp && _temp.then ? _temp.then(_temp2) : _temp2(_temp));
-    } catch (e) {
-      return Promise.reject(e);
+    if (!auth) {
+      await loadAuth();
     }
+
+    const {
+      token
+    } = auth;
+
+    if (token) {
+      logger$1.debug('Adding auth token to header');
+      headers.authorization = token ? `Bearer ${token}` : '';
+    }
+
+    return {
+      headers
+    };
   });
   const link = client.from([auth_link, http_link]);
   const cache = new client.InMemoryCache(cache_options);
@@ -983,6 +698,45 @@ function getClient({
     logger$1.debug('Writing auth to storage');
     const json = JSON.stringify(auth);
     return storage.setItem(storage_key, json);
+  }
+
+  async function readAuthFromStorage() {
+    logger$1.debug('Reading auth from storage');
+    let auth;
+
+    try {
+      const json = await storage.getItem(storage_key);
+      auth = JSON.parse(json) || NO_SESSION;
+    } catch (error) {
+      auth = NO_SESSION;
+    }
+
+    return auth;
+  }
+
+  async function setAuth(new_auth) {
+    logger$1.debug('Setting session auth');
+
+    if (storage) {
+      await writeAuthToStorage(new_auth);
+    }
+
+    auth = new_auth;
+  }
+
+  async function loadAuth() {
+    if (!storage) {
+      throw new Error('No storage specified to load auth from');
+    }
+
+    logger$1.debug('Loading session auth');
+    auth = await readAuthFromStorage();
+    return auth;
+  }
+
+  async function clearAuth() {
+    logger$1.debug('Clearing session auth');
+    setAuth(NO_SESSION);
   }
 
   client$1.setAuth = setAuth;
