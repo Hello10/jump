@@ -64,6 +64,7 @@ export default class Router extends useSingleton.Singleton {
   }
 
   start ({url, ...input}) {
+    this.logger.debug('Router start', {url, input});
     if (!url) {
       url = '/';
       if (this.web) {
@@ -82,7 +83,7 @@ export default class Router extends useSingleton.Singleton {
       ...this.input,
       ...this.router._normalizeInput(args)
     };
-    this.logger.debug('Router go called', {args, current: this.url});
+    this.logger.debug('Router go', {args, current: this.url});
     this.router.go(args);
   }
 
@@ -107,8 +108,8 @@ export default class Router extends useSingleton.Singleton {
         if (this.web) {
           window.history.pushState(state, '', match.url);
         }
-        this.setState({match, input, error: null});
       }
+      this.setState({match, input, error: null});
     } else {
       const error = new Error('No match from router');
       this.setState({match, input, error});

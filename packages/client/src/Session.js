@@ -3,23 +3,33 @@ import {useSingleton} from '@hello10/react-hooks';
 
 import logger from './logger';
 
+const NO_SESSION = {
+  token: null,
+  refresh_token: null
+};
+
 export default class Session extends useSingleton.Singleton {
   initialize () {
     const {
       Firebase,
       SessionUser,
       client,
+      storage,
+      storage_key = 'JUMP_AUTH',
       shouldEndSessionOnError = ()=> {
         return true;
       }
     } = this.options;
 
+    client.session = this;
     SessionUser.client = client;
     const user = new SessionUser();
 
     this.Firebase = Firebase;
     this.SessionUser = SessionUser;
     this.client = client;
+    this.storage = storage;
+    this.storage_key = storage_key;
     this.shouldEndSessionOnError = shouldEndSessionOnError;
 
     this.logger = logger.child({
@@ -27,12 +37,21 @@ export default class Session extends useSingleton.Singleton {
       user
     });
 
+    if (!storage) {
+      this.logger.info('Client session storage is disabled');
+    }
+
     return {
       user,
+      auth: null,
       changing: false,
       loaded: false,
       error: null
     };
+  }
+
+  get auth () {
+    return this.state.auth;
   }
 
   get user () {
@@ -67,14 +86,19 @@ export default class Session extends useSingleton.Singleton {
   async load () {
     this.logger.debug('Loading session');
     return this._change(async ()=> {
-      await this.client.loadAuth();
+      const auth = await this._readAuthFromStorage();
       const user = await this.SessionUser.load();
       this.logger.debug('Session loaded', {user});
       return {
+        auth,
         user,
         loaded: true
       };
     });
+  }
+
+  getToken () {
+    return this.auth.token;
   }
 
   unload () {}
@@ -84,7 +108,7 @@ export default class Session extends useSingleton.Singleton {
     return this._change(async ()=> {
       const {user, auth} = await this.SessionUser.start(args);
       this.logger.debug('Session started, setting auth', {user});
-      await this.client.setAuth(auth);
+      await this._writeAuthToStorage(auth);
       await this.apps((app)=> {
         const app_token = auth.app_tokens.find(({name})=> name === app.name);
         if (!app_token) {
@@ -92,7 +116,7 @@ export default class Session extends useSingleton.Singleton {
         }
         return app.auth().signInWithCustomToken(app_token.token);
       });
-      return {user};
+      return {user, auth};
     });
   }
 
@@ -105,13 +129,11 @@ export default class Session extends useSingleton.Singleton {
 
     this.logger.debug('Refreshing session');
     return this._change(async ()=> {
-      const {client} = this;
-      const client_auth = await client.loadAuth();
-      const data = await SessionUser.refresh(client_auth);
+      const data = await SessionUser.refresh(this.auth);
       const {user, auth} = data;
-      this.logger.debug('Session refreshed, setting auth', {user});
-      await client.setAuth(auth);
-      return {user};
+      this.logger.debug('Session refreshed', {user});
+      await this._writeAuthToStorage(auth);
+      return {user, auth};
     });
   }
 
@@ -119,18 +141,15 @@ export default class Session extends useSingleton.Singleton {
     const {SessionUser} = this;
     this.logger.debug('Ending session');
     return this._change(async ()=> {
-      try {
-        await SessionUser.end(args);
-        this.logger.debug('Session ended');
-      } catch (error) {
-        this.logger.error('Error ending session', error);
-      }
-      await this.client.clearAuth();
+      await SessionUser.end(args);
       await this.apps((app)=> {
         app.auth().signOut();
       });
       const user = new SessionUser();
-      return {user};
+      return {
+        user,
+        auth: NO_SESSION
+      };
     });
   }
 
@@ -148,17 +167,42 @@ export default class Session extends useSingleton.Singleton {
       });
     } catch (error) {
       this.logger.error('Session error', {error});
-      let {user} = this;
+      let {user, auth} = this;
       if (this.shouldEndSessionOnError(error)) {
         this.logger.debug('Clearing session on error');
-        await this.client.clearAuth();
+        auth = NO_SESSION;
         user = null;
       }
       this.setState({
         changing: false,
+        auth,
         user,
         error
       });
     }
+  }
+
+  async _writeAuthToStorage (auth) {
+    const {storage, storage_key} = this;
+    if (storage) {
+      logger.debug('Writing auth to storage');
+      const json = JSON.stringify(auth);
+      await storage.setItem(storage_key, json);
+    }
+  }
+
+  async _readAuthFromStorage () {
+    const {storage, storage_key} = this;
+    let auth = null;
+    if (storage) {
+      logger.debug('Reading auth from storage');
+      try {
+        const json = await storage.getItem(storage_key);
+        auth = JSON.parse(json);
+      } catch (error) {
+        this.logger.error('Error loading session form storage', {error});
+      }
+    }
+    return auth || NO_SESSION;
   }
 }

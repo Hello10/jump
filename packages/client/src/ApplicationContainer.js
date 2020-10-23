@@ -19,7 +19,6 @@ export default function ApplicationContainer ({
 
   const router = useRouter();
   const session = useSession();
-  const {user} = session;
 
   useEffect(()=> {
     logger.debug('Loading session');
@@ -31,11 +30,13 @@ export default function ApplicationContainer ({
   }, []);
 
   useEffect(()=> {
-    logger.debug('Running router', {user});
+    logger.debug('Running router', {user: session.user});
     if (!session.loaded) {
       return;
     }
-    const match = router.start({user});
+    const match = router.start({
+      user: session.user
+    });
     if (match?.redirect) {
       const {route} = match;
       let msg = 'Got redirect';
@@ -45,7 +46,7 @@ export default function ApplicationContainer ({
       }
       logger.info(msg, {match});
     }
-  }, [user]);
+  }, [session.user]);
 
   if (session.loaded && router.match) {
     return (
@@ -53,11 +54,11 @@ export default function ApplicationContainer ({
         match={router.match}
       >
         <PageContainer
-          Loading={PageLoading}
-          Error={PageError}
+          PageLoading={PageLoading}
+          PageError={PageError}
           match={router.match}
           client={client}
-          user={user}
+          user={session.user}
           {...props}
         />
       </Container>
@@ -66,7 +67,7 @@ export default function ApplicationContainer ({
     return (
       <ApplicationLoading
         error={session.error || router.error}
-        user={user}
+        user={session.user}
         {...props}
       />
     );

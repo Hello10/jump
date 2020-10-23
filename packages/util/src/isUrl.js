@@ -1,4 +1,4 @@
-import UrlRegex from 'url-regex';
+import UrlRegex from 'url-regex-safe';
 
 const regex = UrlRegex({exact: true});
 

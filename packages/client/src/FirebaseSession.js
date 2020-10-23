@@ -11,24 +11,26 @@ export default class FirebaseSession extends Session {
     this.setState({changing: true});
 
     const {SessionUser, client} = this;
-    this.unsubscribe = this.auth.onAuthStateChanged(async (firebase_user)=> {
+    this.unsubscribe = this.auth.onIdTokenChanged(async (firebase_user)=> {
       this.logger.debug('Firebase auth state changed', {firebase_user});
       await this._change(async ()=> {
         let user;
         if (firebase_user) {
           this.logger.debug('Getting firebase user token');
           const token = await firebase_user.getIdToken(true);
-          client.setAuth({token});
           this.logger.debug('Loading session user');
           user = await SessionUser.load({client, token, firebase_user});
         } else {
           this.logger.debug('No firebase user clearing session');
-          await client.clearAuth();
           user = new SessionUser();
         }
         return {user, loaded: true};
       });
     });
+  }
+
+  getToken () {
+    return this.auth.currentUser?.getIdToken(true);
   }
 
   async unload () {
@@ -87,7 +89,13 @@ export default class FirebaseSession extends Session {
   }
 
   async end () {
-    this.setState({changing: true});
-    return this.auth.signOut();
+    const {SessionUser} = this;
+    this.logger.debug('Ending session');
+    return this._change(async ()=> {
+      await this.auth.signOut();
+      return {
+        user: new SessionUser()
+      };
+    });
   }
 }

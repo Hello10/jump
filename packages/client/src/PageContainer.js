@@ -5,7 +5,7 @@ import base_logger from './logger';
 
 const logger = base_logger.child('PageContainer');
 
-function Query ({Loading, Error, Page, ...props}) {
+function Query ({PageLoading, PageError, Page, ...props}) {
   const {name, params, user} = props;
   const {query: query_gql, ...options} = Page.query({params, user});
   const query = useQuery(query_gql, options);
@@ -16,7 +16,7 @@ function Query ({Loading, Error, Page, ...props}) {
   if (loading) {
     logger.debug(`Rendering loading for ${name}`);
     return (
-      <Loading
+      <PageLoading
         Page={Page}
         query={query}
         {...props}
@@ -25,7 +25,7 @@ function Query ({Loading, Error, Page, ...props}) {
   } else if (error) {
     logger.debug(`Rendering error for ${name}`);
     return (
-      <Error
+      <PageError
         Page={Page}
         error={error}
         query={query}
@@ -47,8 +47,11 @@ function Query ({Loading, Error, Page, ...props}) {
 export function PageContainer (props) {
   const {route, params} = props.match;
   const {page: Page, name} = route;
-
   const page_props = {route, params, name};
+
+  if (!Page) {
+    throw new Error('Page not found in route');
+  }
 
   if (Page.query) {
     return (

@@ -47,11 +47,11 @@ const logger$1 = logger.child('PageContainer');
 
 function Query(_ref) {
   let {
-    Loading,
-    Error,
+    PageLoading,
+    PageError,
     Page
   } = _ref,
-      props = _objectWithoutPropertiesLoose(_ref, ["Loading", "Error", "Page"]);
+      props = _objectWithoutPropertiesLoose(_ref, ["PageLoading", "PageError", "Page"]);
 
   const {
     name,
@@ -82,13 +82,13 @@ function Query(_ref) {
 
   if (loading) {
     logger$1.debug(`Rendering loading for ${name}`);
-    return /*#__PURE__*/createElement(Loading, _extends({
+    return /*#__PURE__*/createElement(PageLoading, _extends({
       Page: Page,
       query: query
     }, props));
   } else if (error) {
     logger$1.debug(`Rendering error for ${name}`);
-    return /*#__PURE__*/createElement(Error, _extends({
+    return /*#__PURE__*/createElement(PageError, _extends({
       Page: Page,
       error: error,
       query: query
@@ -116,6 +116,10 @@ function PageContainer(props) {
     params,
     name
   };
+
+  if (!Page) {
+    throw new Error('Page not found in route');
+  }
 
   if (Page.query) {
     return /*#__PURE__*/createElement(Query, _extends({
@@ -145,9 +149,6 @@ function ApplicationContainer(_ref) {
   logger$1.debug('Rendering ApplicationContainer');
   const router = useRouter();
   const session = useSession();
-  const {
-    user
-  } = session;
   useEffect(() => {
     logger$1.debug('Loading session');
     session.load();
@@ -158,7 +159,7 @@ function ApplicationContainer(_ref) {
   }, []);
   useEffect(() => {
     logger$1.debug('Running router', {
-      user
+      user: session.user
     });
 
     if (!session.loaded) {
@@ -166,7 +167,7 @@ function ApplicationContainer(_ref) {
     }
 
     const match = router.start({
-      user
+      user: session.user
     });
 
     if (match == null ? void 0 : match.redirect) {
@@ -184,22 +185,22 @@ function ApplicationContainer(_ref) {
         match
       });
     }
-  }, [user]);
+  }, [session.user]);
 
   if (session.loaded && router.match) {
     return /*#__PURE__*/React__default.createElement(Container, {
       match: router.match
     }, /*#__PURE__*/React__default.createElement(PageContainer, _extends({
-      Loading: PageLoading,
-      Error: PageError,
+      PageLoading: PageLoading,
+      PageError: PageError,
       match: router.match,
       client: client,
-      user: user
+      user: session.user
     }, props)));
   } else {
     return /*#__PURE__*/React__default.createElement(ApplicationLoading, _extends({
       error: session.error || router.error,
-      user: user
+      user: session.user
     }, props));
   }
 }
@@ -320,32 +321,51 @@ async function mapp(iterable, map, options = {}) {
 }
 var mapp_1 = mapp;
 
+const NO_SESSION = {
+  token: null,
+  refresh_token: null
+};
 class Session extends useSingleton.Singleton {
   initialize() {
     const {
       Firebase,
       SessionUser,
       client,
+      storage,
+      storage_key = 'JUMP_AUTH',
       shouldEndSessionOnError = () => {
         return true;
       }
     } = this.options;
+    client.session = this;
     SessionUser.client = client;
     const user = new SessionUser();
     this.Firebase = Firebase;
     this.SessionUser = SessionUser;
     this.client = client;
+    this.storage = storage;
+    this.storage_key = storage_key;
     this.shouldEndSessionOnError = shouldEndSessionOnError;
     this.logger = logger.child({
       name: 'Session',
       user
     });
+
+    if (!storage) {
+      this.logger.info('Client session storage is disabled');
+    }
+
     return {
       user,
+      auth: null,
       changing: false,
       loaded: false,
       error: null
     };
+  }
+
+  get auth() {
+    return this.state.auth;
   }
 
   get user() {
@@ -382,16 +402,21 @@ class Session extends useSingleton.Singleton {
   async load() {
     this.logger.debug('Loading session');
     return this._change(async () => {
-      await this.client.loadAuth();
+      const auth = await this._readAuthFromStorage();
       const user = await this.SessionUser.load();
       this.logger.debug('Session loaded', {
         user
       });
       return {
+        auth,
         user,
         loaded: true
       };
     });
+  }
+
+  getToken() {
+    return this.auth.token;
   }
 
   unload() {}
@@ -406,7 +431,7 @@ class Session extends useSingleton.Singleton {
       this.logger.debug('Session started, setting auth', {
         user
       });
-      await this.client.setAuth(auth);
+      await this._writeAuthToStorage(auth);
       await this.apps(app => {
         const app_token = auth.app_tokens.find(({
           name
@@ -419,7 +444,8 @@ class Session extends useSingleton.Singleton {
         return app.auth().signInWithCustomToken(app_token.token);
       });
       return {
-        user
+        user,
+        auth
       };
     });
   }
@@ -436,21 +462,18 @@ class Session extends useSingleton.Singleton {
 
     this.logger.debug('Refreshing session');
     return this._change(async () => {
-      const {
-        client
-      } = this;
-      const client_auth = await client.loadAuth();
-      const data = await SessionUser.refresh(client_auth);
+      const data = await SessionUser.refresh(this.auth);
       const {
         user,
         auth
       } = data;
-      this.logger.debug('Session refreshed, setting auth', {
+      this.logger.debug('Session refreshed', {
         user
       });
-      await client.setAuth(auth);
+      await this._writeAuthToStorage(auth);
       return {
-        user
+        user,
+        auth
       };
     });
   }
@@ -461,20 +484,14 @@ class Session extends useSingleton.Singleton {
     } = this;
     this.logger.debug('Ending session');
     return this._change(async () => {
-      try {
-        await SessionUser.end(args);
-        this.logger.debug('Session ended');
-      } catch (error) {
-        this.logger.error('Error ending session', error);
-      }
-
-      await this.client.clearAuth();
+      await SessionUser.end(args);
       await this.apps(app => {
         app.auth().signOut();
       });
       const user = new SessionUser();
       return {
-        user
+        user,
+        auth: NO_SESSION
       };
     });
   }
@@ -497,21 +514,59 @@ class Session extends useSingleton.Singleton {
         error
       });
       let {
-        user
+        user,
+        auth
       } = this;
 
       if (this.shouldEndSessionOnError(error)) {
         this.logger.debug('Clearing session on error');
-        await this.client.clearAuth();
+        auth = NO_SESSION;
         user = null;
       }
 
       this.setState({
         changing: false,
+        auth,
         user,
         error
       });
     }
+  }
+
+  async _writeAuthToStorage(auth) {
+    const {
+      storage,
+      storage_key
+    } = this;
+
+    if (storage) {
+      logger.debug('Writing auth to storage');
+      const json = JSON.stringify(auth);
+      await storage.setItem(storage_key, json);
+    }
+  }
+
+  async _readAuthFromStorage() {
+    const {
+      storage,
+      storage_key
+    } = this;
+    let auth = null;
+
+    if (storage) {
+      logger.debug('Reading auth from storage');
+
+      try {
+        const json = await storage.getItem(storage_key);
+        auth = JSON.parse(json);
+      } catch (error) {
+        this.logger.error('Error loading session form storage', {
+          error
+        });
+      }
+    }
+
+    return auth || NO_SESSION;
   }
 
 }
@@ -530,7 +585,7 @@ class FirebaseSession extends Session {
       SessionUser,
       client
     } = this;
-    this.unsubscribe = this.auth.onAuthStateChanged(async firebase_user => {
+    this.unsubscribe = this.auth.onIdTokenChanged(async firebase_user => {
       this.logger.debug('Firebase auth state changed', {
         firebase_user
       });
@@ -540,9 +595,6 @@ class FirebaseSession extends Session {
         if (firebase_user) {
           this.logger.debug('Getting firebase user token');
           const token = await firebase_user.getIdToken(true);
-          client.setAuth({
-            token
-          });
           this.logger.debug('Loading session user');
           user = await SessionUser.load({
             client,
@@ -551,7 +603,6 @@ class FirebaseSession extends Session {
           });
         } else {
           this.logger.debug('No firebase user clearing session');
-          await client.clearAuth();
           user = new SessionUser();
         }
 
@@ -561,6 +612,12 @@ class FirebaseSession extends Session {
         };
       });
     });
+  }
+
+  getToken() {
+    var _this$auth$currentUse;
+
+    return (_this$auth$currentUse = this.auth.currentUser) == null ? void 0 : _this$auth$currentUse.getIdToken(true);
   }
 
   async unload() {
@@ -634,23 +691,22 @@ class FirebaseSession extends Session {
   }
 
   async end() {
-    this.setState({
-      changing: true
+    const {
+      SessionUser
+    } = this;
+    this.logger.debug('Ending session');
+    return this._change(async () => {
+      await this.auth.signOut();
+      return {
+        user: new SessionUser()
+      };
     });
-    return this.auth.signOut();
   }
 
 }
 
-const NO_SESSION = {
-  token: null,
-  refresh_token: null
-};
-let auth = null;
 function getClient({
   uri,
-  storage,
-  storage_key = 'JUMP_AUTH',
   options = {},
   cache_options = {}
 }) {
@@ -662,22 +718,22 @@ function getClient({
   const http_link = new HttpLink({
     uri
   });
+  let client;
   const auth_link = setContext(async (request, prev_context) => {
     const {
       headers = {}
     } = prev_context;
-
-    if (!auth) {
-      await loadAuth();
-    }
-
     const {
-      token
-    } = auth;
+      session
+    } = client;
 
-    if (token) {
-      logger$1.debug('Adding auth token to header');
-      headers.authorization = token ? `Bearer ${token}` : '';
+    if (session) {
+      const token = await session.getToken();
+
+      if (token) {
+        logger$1.debug('Adding auth token to header');
+        headers.authorization = token ? `Bearer ${token}` : '';
+      }
     }
 
     return {
@@ -686,60 +742,11 @@ function getClient({
   });
   const link = from([auth_link, http_link]);
   const cache = new InMemoryCache(cache_options);
-  const client = new ApolloClient({
+  client = new ApolloClient({
     link,
     cache,
     defaultOptions: options
   });
-
-  function writeAuthToStorage(auth) {
-    logger$1.debug('Writing auth to storage');
-    const json = JSON.stringify(auth);
-    return storage.setItem(storage_key, json);
-  }
-
-  async function readAuthFromStorage() {
-    logger$1.debug('Reading auth from storage');
-    let auth;
-
-    try {
-      const json = await storage.getItem(storage_key);
-      auth = JSON.parse(json) || NO_SESSION;
-    } catch (error) {
-      auth = NO_SESSION;
-    }
-
-    return auth;
-  }
-
-  async function setAuth(new_auth) {
-    logger$1.debug('Setting session auth');
-
-    if (storage) {
-      await writeAuthToStorage(new_auth);
-    }
-
-    auth = new_auth;
-  }
-
-  async function loadAuth() {
-    if (!storage) {
-      throw new Error('No storage specified to load auth from');
-    }
-
-    logger$1.debug('Loading session auth');
-    auth = await readAuthFromStorage();
-    return auth;
-  }
-
-  async function clearAuth() {
-    logger$1.debug('Clearing session auth');
-    setAuth(NO_SESSION);
-  }
-
-  client.setAuth = setAuth;
-  client.loadAuth = loadAuth;
-  client.clearAuth = clearAuth;
   return client;
 }
 
@@ -872,6 +879,11 @@ class Router extends useSingleton.Singleton {
     } = _ref,
         input = _objectWithoutPropertiesLoose(_ref, ["url"]);
 
+    this.logger.debug('Router start', {
+      url,
+      input
+    });
+
     if (!url) {
       url = '/';
 
@@ -901,7 +913,7 @@ class Router extends useSingleton.Singleton {
 
   go(args) {
     args = _extends({}, this.input, this.router._normalizeInput(args));
-    this.logger.debug('Router go called', {
+    this.logger.debug('Router go', {
       args,
       current: this.url
     });
@@ -943,13 +955,13 @@ class Router extends useSingleton.Singleton {
         if (this.web) {
           window.history.pushState(state, '', match.url);
         }
-
-        this.setState({
-          match,
-          input,
-          error: null
-        });
       }
+
+      this.setState({
+        match,
+        input,
+        error: null
+      });
     } else {
       const error = new Error('No match from router');
       this.setState({

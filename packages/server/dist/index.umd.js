@@ -560,8 +560,13 @@
     async create({
       data
     }) {
-      return this.add({
+      const {
+        id
+      } = await this.add({
         data
+      });
+      return this.get({
+        id
       });
     } ///////////////
     // Core:Read //
@@ -665,12 +670,12 @@
       if (query) {
         let parts;
 
-        if (lodash.isObject(query)) {
+        if (Array.isArray(query)) {
+          parts = Array.isArray(query[0]) ? query : [query];
+        } else if (lodash.isObject(query)) {
           parts = Object.entries(query).map(([field, value]) => {
             return [field, '==', value];
           });
-        } else if (Array.isArray(query)) {
-          parts = Array.isArray(query[0]) ? query : [query];
         } else {
           invalid('query');
         }
