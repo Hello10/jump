@@ -208,26 +208,12 @@ export default class GraphQLController {
   list   = this._toCollection('list');
   create = this._wrapToCollection('create');
   update = this._wrapToCollection('update');
+  delete = this._wrapToCollection('delete')
 
   get = this.load({
     collection: this.name,
     path: 'args.id'
   });
-
-  async delete (request) {
-    if (this.beforeDelete) {
-      await this.beforeDelete(request);
-    }
-
-    const deleted = await this.collection.delete(request.args);
-    const deleted_at = new Date();
-
-    if (this.afterDelete) {
-      await this.afterDelete({...request, deleted, deleted_at});
-    }
-
-    return {deleted_at, deleted};
-  }
 
   _toCollection (method) {
     return (request)=> {
@@ -241,7 +227,7 @@ export default class GraphQLController {
     const after = `after${cmethod}`;
 
     return async (request)=> {
-      const {args} = request;
+      const {args = {}} = request;
 
       let {data} = args;
       if (this[before]) {
@@ -250,7 +236,10 @@ export default class GraphQLController {
 
       let doc = await this.collection[method]({...args, data});
       if (this[after]) {
-        doc = await this[after]({...request, data, doc});
+        const result = await this[after]({...request, data, doc});
+        if (result !== undefined) {
+          doc = result;
+        }
       }
 
       return doc;

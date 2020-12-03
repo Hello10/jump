@@ -170,7 +170,7 @@ function ApplicationContainer(_ref) {
       user: session.user
     });
 
-    if (match == null ? void 0 : match.redirect) {
+    if (match != null && match.redirect) {
       const {
         route
       } = match;
@@ -185,7 +185,7 @@ function ApplicationContainer(_ref) {
         match
       });
     }
-  }, [session.user]);
+  }, [session.user, session.loaded]);
 
   if (session.loaded && router.match) {
     return /*#__PURE__*/React__default.createElement(Container, {
@@ -350,6 +350,7 @@ class Session extends useSingleton.Singleton {
       name: 'Session',
       user
     });
+    this.auth = null;
 
     if (!storage) {
       this.logger.info('Client session storage is disabled');
@@ -357,15 +358,10 @@ class Session extends useSingleton.Singleton {
 
     return {
       user,
-      auth: null,
       changing: false,
       loaded: false,
       error: null
     };
-  }
-
-  get auth() {
-    return this.state.auth;
   }
 
   get user() {
@@ -402,13 +398,12 @@ class Session extends useSingleton.Singleton {
   async load() {
     this.logger.debug('Loading session');
     return this._change(async () => {
-      const auth = await this._readAuthFromStorage();
+      this.auth = await this.readAuth();
       const user = await this.SessionUser.load();
       this.logger.debug('Session loaded', {
         user
       });
       return {
-        auth,
         user,
         loaded: true
       };
@@ -416,7 +411,9 @@ class Session extends useSingleton.Singleton {
   }
 
   getToken() {
-    return this.auth.token;
+    var _this$auth;
+
+    return (_this$auth = this.auth) == null ? void 0 : _this$auth.token;
   }
 
   unload() {}
@@ -431,7 +428,7 @@ class Session extends useSingleton.Singleton {
       this.logger.debug('Session started, setting auth', {
         user
       });
-      await this._writeAuthToStorage(auth);
+      await this.writeAuth(auth);
       await this.apps(app => {
         const app_token = auth.app_tokens.find(({
           name
@@ -444,8 +441,7 @@ class Session extends useSingleton.Singleton {
         return app.auth().signInWithCustomToken(app_token.token);
       });
       return {
-        user,
-        auth
+        user
       };
     });
   }
@@ -470,10 +466,9 @@ class Session extends useSingleton.Singleton {
       this.logger.debug('Session refreshed', {
         user
       });
-      await this._writeAuthToStorage(auth);
+      await this.writeAuth(auth);
       return {
-        user,
-        auth
+        user
       };
     });
   }
@@ -489,9 +484,9 @@ class Session extends useSingleton.Singleton {
         app.auth().signOut();
       });
       const user = new SessionUser();
+      await this.clearAuth();
       return {
-        user,
-        auth: NO_SESSION
+        user
       };
     });
   }
@@ -514,26 +509,25 @@ class Session extends useSingleton.Singleton {
         error
       });
       let {
-        user,
-        auth
+        user
       } = this;
 
       if (this.shouldEndSessionOnError(error)) {
         this.logger.debug('Clearing session on error');
-        auth = NO_SESSION;
-        user = null;
+        await this.clearAuth();
+        user = new this.SessionUser();
       }
 
       this.setState({
         changing: false,
-        auth,
         user,
         error
       });
     }
   }
 
-  async _writeAuthToStorage(auth) {
+  async writeAuth(auth) {
+    this.auth = auth;
     const {
       storage,
       storage_key
@@ -546,7 +540,7 @@ class Session extends useSingleton.Singleton {
     }
   }
 
-  async _readAuthFromStorage() {
+  async readAuth() {
     const {
       storage,
       storage_key
@@ -567,6 +561,19 @@ class Session extends useSingleton.Singleton {
     }
 
     return auth || NO_SESSION;
+  }
+
+  async clearAuth() {
+    this.auth = NO_SESSION;
+    const {
+      storage,
+      storage_key
+    } = this;
+
+    if (storage) {
+      logger.debug('Clearing auth from storage');
+      await storage.removeItem(storage_key);
+    }
   }
 
 }

@@ -171,11 +171,12 @@ export default class FirestoreCollection extends Collection {
   /////////////////
 
   async delete ({id, assert = true}) {
-    if (assert) {
-      await this.existsAssert({id});
+    const doc = await this.get({id, assert});
+    if (doc) {
+      const ref = this.doc(id);
+      await ref.delete();
     }
-    const ref = this.doc(id);
-    return ref.delete();
+    return doc;
   }
 
   deleteAll ({ids}) {
@@ -253,7 +254,7 @@ export default class FirestoreCollection extends Collection {
   // Helpers //
   /////////////
 
-  _timestamp () {
+  timestamp () {
     return this.Admin.firestore.FieldValue.serverTimestamp();
   }
 

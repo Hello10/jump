@@ -467,13 +467,13 @@
     /////////////
 
 
-    _timestamp() {
+    timestamp() {
       return new Date();
     }
 
     _addTimestamps(obj, time) {
       if (!time) {
-        time = this._timestamp();
+        time = this.timestamp();
       }
 
       this._addCreatedAt(obj, time);
@@ -485,7 +485,7 @@
 
     _addCreatedAt(obj, time) {
       if (!('created_at' in obj)) {
-        obj.created_at = time || this._timestamp();
+        obj.created_at = time || this.timestamp();
       }
 
       return obj;
@@ -493,7 +493,7 @@
 
     _addUpdatedAt(obj, time) {
       if (!('updated_at' in obj)) {
-        obj.updated_at = time || this._timestamp();
+        obj.updated_at = time || this.timestamp();
       }
 
       return obj;
@@ -740,14 +740,17 @@
       id,
       assert = true
     }) {
-      if (assert) {
-        await this.existsAssert({
-          id
-        });
+      const doc = await this.get({
+        id,
+        assert
+      });
+
+      if (doc) {
+        const ref = this.doc(id);
+        await ref.delete();
       }
 
-      const ref = this.doc(id);
-      return ref.delete();
+      return doc;
     }
 
     deleteAll({
@@ -860,7 +863,7 @@
     /////////////
 
 
-    _timestamp() {
+    timestamp() {
       return this.Admin.firestore.FieldValue.serverTimestamp();
     }
 
@@ -1211,6 +1214,7 @@
       this.list = this._toCollection('list');
       this.create = this._wrapToCollection('create');
       this.update = this._wrapToCollection('update');
+      this.delete = this._wrapToCollection('delete');
       this.get = this.load({
         collection: this.name,
         path: 'args.id'
@@ -1448,27 +1452,6 @@
     ///////////////////////
 
 
-    async delete(request) {
-      if (this.beforeDelete) {
-        await this.beforeDelete(request);
-      }
-
-      const deleted = await this.collection.delete(request.args);
-      const deleted_at = new Date();
-
-      if (this.afterDelete) {
-        await this.afterDelete(_extends({}, request, {
-          deleted,
-          deleted_at
-        }));
-      }
-
-      return {
-        deleted_at,
-        deleted
-      };
-    }
-
     _toCollection(method) {
       return request => {
         return this.collection[method](request.args);
@@ -1481,7 +1464,7 @@
       const after = `after${cmethod}`;
       return async request => {
         const {
-          args
+          args = {}
         } = request;
         let {
           data
@@ -1498,10 +1481,14 @@
         }));
 
         if (this[after]) {
-          doc = await this[after](_extends({}, request, {
+          const result = await this[after](_extends({}, request, {
             data,
             doc
           }));
+
+          if (result !== undefined) {
+            doc = result;
+          }
         }
 
         return doc;

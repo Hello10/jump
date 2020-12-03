@@ -37,21 +37,18 @@ export default class Session extends useSingleton.Singleton {
       user
     });
 
+    this.auth = null;
+
     if (!storage) {
       this.logger.info('Client session storage is disabled');
     }
 
     return {
       user,
-      auth: null,
       changing: false,
       loaded: false,
       error: null
     };
-  }
-
-  get auth () {
-    return this.state.auth;
   }
 
   get user () {
@@ -86,11 +83,10 @@ export default class Session extends useSingleton.Singleton {
   async load () {
     this.logger.debug('Loading session');
     return this._change(async ()=> {
-      const auth = await this._readAuthFromStorage();
+      this.auth = await this.readAuth();
       const user = await this.SessionUser.load();
       this.logger.debug('Session loaded', {user});
       return {
-        auth,
         user,
         loaded: true
       };
@@ -98,7 +94,7 @@ export default class Session extends useSingleton.Singleton {
   }
 
   getToken () {
-    return this.auth.token;
+    return this.auth?.token;
   }
 
   unload () {}
@@ -108,7 +104,7 @@ export default class Session extends useSingleton.Singleton {
     return this._change(async ()=> {
       const {user, auth} = await this.SessionUser.start(args);
       this.logger.debug('Session started, setting auth', {user});
-      await this._writeAuthToStorage(auth);
+      await this.writeAuth(auth);
       await this.apps((app)=> {
         const app_token = auth.app_tokens.find(({name})=> name === app.name);
         if (!app_token) {
@@ -116,7 +112,7 @@ export default class Session extends useSingleton.Singleton {
         }
         return app.auth().signInWithCustomToken(app_token.token);
       });
-      return {user, auth};
+      return {user};
     });
   }
 
@@ -132,8 +128,8 @@ export default class Session extends useSingleton.Singleton {
       const data = await SessionUser.refresh(this.auth);
       const {user, auth} = data;
       this.logger.debug('Session refreshed', {user});
-      await this._writeAuthToStorage(auth);
-      return {user, auth};
+      await this.writeAuth(auth);
+      return {user};
     });
   }
 
@@ -146,10 +142,8 @@ export default class Session extends useSingleton.Singleton {
         app.auth().signOut();
       });
       const user = new SessionUser();
-      return {
-        user,
-        auth: NO_SESSION
-      };
+      await this.clearAuth();
+      return {user};
     });
   }
 
@@ -167,22 +161,22 @@ export default class Session extends useSingleton.Singleton {
       });
     } catch (error) {
       this.logger.error('Session error', {error});
-      let {user, auth} = this;
+      let {user} = this;
       if (this.shouldEndSessionOnError(error)) {
         this.logger.debug('Clearing session on error');
-        auth = NO_SESSION;
-        user = null;
+        await this.clearAuth();
+        user = new this.SessionUser();
       }
       this.setState({
         changing: false,
-        auth,
         user,
         error
       });
     }
   }
 
-  async _writeAuthToStorage (auth) {
+  async writeAuth (auth) {
+    this.auth = auth;
     const {storage, storage_key} = this;
     if (storage) {
       logger.debug('Writing auth to storage');
@@ -191,7 +185,7 @@ export default class Session extends useSingleton.Singleton {
     }
   }
 
-  async _readAuthFromStorage () {
+  async readAuth () {
     const {storage, storage_key} = this;
     let auth = null;
     if (storage) {
@@ -204,5 +198,14 @@ export default class Session extends useSingleton.Singleton {
       }
     }
     return auth || NO_SESSION;
+  }
+
+  async clearAuth () {
+    this.auth = NO_SESSION;
+    const {storage, storage_key} = this;
+    if (storage) {
+      logger.debug('Clearing auth from storage');
+      await storage.removeItem(storage_key);
+    }
   }
 }

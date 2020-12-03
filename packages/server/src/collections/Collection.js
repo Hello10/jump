@@ -219,13 +219,13 @@ export default class Collection {
   // Helpers //
   /////////////
 
-  _timestamp () {
+  timestamp () {
     return new Date();
   }
 
   _addTimestamps (obj, time) {
     if (!time) {
-      time = this._timestamp();
+      time = this.timestamp();
     }
     this._addCreatedAt(obj, time);
     this._addUpdatedAt(obj, time);
@@ -234,14 +234,14 @@ export default class Collection {
 
   _addCreatedAt (obj, time) {
     if (!('created_at' in obj)) {
-      obj.created_at = time || this._timestamp();
+      obj.created_at = time || this.timestamp();
     }
     return obj;
   }
 
   _addUpdatedAt (obj, time) {
     if (!('updated_at' in obj)) {
-      obj.updated_at = time || this._timestamp();
+      obj.updated_at = time || this.timestamp();
     }
     return obj;
   }

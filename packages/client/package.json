@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-client",
-  "version": "3.1.1",
+  "version": "3.2.0",
   "description": "Jump Client",
   "main": "dist/index.js",
   "source": "src/index.js",
@@ -23,7 +23,7 @@
     "babel-polyfill": "6.26.0",
     "deep-equal": "2.0.4",
     "graphql-tag": "2.11.0",
-    "groutcho": "3.1.1",
+    "groutcho": "3.1.3",
     "prop-types": "15.7.2"
   },
   "devDependencies": {

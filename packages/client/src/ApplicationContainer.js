@@ -46,7 +46,7 @@ export default function ApplicationContainer ({
       }
       logger.info(msg, {match});
     }
-  }, [session.user]);
+  }, [session.user, session.loaded]);
 
   if (session.loaded && router.match) {
     return (
