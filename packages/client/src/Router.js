@@ -81,7 +81,7 @@ export default class Router extends useSingleton.Singleton {
   go (args) {
     args = {
       ...this.input,
-      ...this.router._normalizeInput(args)
+      ...this.router.normalizeInput(args)
     };
     this.logger.debug('Router go', {args, current: this.url});
     this.router.go(args);

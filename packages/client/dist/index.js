@@ -921,7 +921,7 @@ class Router extends reactHooks.useSingleton.Singleton {
   }
 
   go(args) {
-    args = _extends({}, this.input, this.router._normalizeInput(args));
+    args = _extends({}, this.input, this.router.normalizeInput(args));
     this.logger.debug('Router go', {
       args,
       current: this.url
