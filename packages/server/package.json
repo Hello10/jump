@@ -1,6 +1,6 @@
 {
   "name": "@hello10/jump-server",
-  "version": "3.4.1",
+  "version": "3.4.2",
   "description": "Jump Server",
   "main": "dist/index.js",
   "source": "src/index.js",

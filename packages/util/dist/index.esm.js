@@ -3,9 +3,9 @@ export * from '@hello10/util';
 import Type from 'type-of-is';
 export { default as Type } from 'type-of-is';
 import { times, mapKeys, camelCase, pickBy, identity, compact, omit, isEqual, sortBy } from 'lodash';
+import urlRegex from 'url-regex-safe';
 import emailRegex from 'email-regex';
 import phoneRegex from 'phone-regex';
-import UrlRegex from 'url-regex-safe';
 
 const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
@@ -27,6 +27,32 @@ function generateUsername() {
 }
 function isGeneratedUsername(username) {
   return username.match(regex);
+}
+
+function isValidUrlStrict(url) {
+  const regex = urlRegex({
+    exact: true,
+    strict: true
+  });
+  return regex.test(url);
+}
+function isValidUrl(url) {
+  const regex = urlRegex({
+    exact: true
+  });
+  return regex.test(url);
+}
+function isValidEmail(email) {
+  const regex = emailRegex({
+    exact: true
+  });
+  return regex.test(email);
+}
+function isValidPhoneNumber(number) {
+  const regex = phoneRegex({
+    exact: true
+  });
+  return regex.test(number);
 }
 
 function camelCaseKeys(obj) {
@@ -63,20 +89,6 @@ function dayAndTime(date) {
     day,
     time
   };
-}
-
-function isValidEmail(email) {
-  const regex = emailRegex({
-    exact: true
-  });
-  return regex.test(email);
-}
-
-function isValidPhoneNumber(number) {
-  const regex = phoneRegex({
-    exact: true
-  });
-  return regex.test(number);
 }
 
 function determineAddressType(address) {
@@ -136,10 +148,6 @@ function generateObjectID(time) {
   return uint16toHex(id);
 }
 
-const regex$1 = UrlRegex({
-  exact: true
-});
-
 function omitTypename(obj) {
   return obj ? omit(obj, '__typename') : obj;
 }
@@ -170,5 +178,5 @@ function storageDownloadUrl({
   return `${BASE_PATH}/${bucket}/o/${key}?alt=media`;
 }
 
-export { camelCaseKeys, compact_ as compact, dayAndTime, determineAddressType, generateObjectID, generateUsername, isGeneratedUsername, regex$1 as isUrl, isValidEmail, isValidPhoneNumber, omitTypename, pluralize, readableCode, setwiseEqual, storageDownloadUrl };
+export { camelCaseKeys, compact_ as compact, dayAndTime, determineAddressType, generateObjectID, generateUsername, isGeneratedUsername, isValidEmail, isValidPhoneNumber, isValidUrl, isValidUrlStrict, omitTypename, pluralize, readableCode, setwiseEqual, storageDownloadUrl };
 //# sourceMappingURL=index.esm.js.map

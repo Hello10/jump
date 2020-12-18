@@ -1,5 +1,7 @@
-import isValidEmail from './isValidEmail';
-import isValidPhoneNumber from './isValidPhoneNumber';
+import {
+  isValidEmail,
+  isValidPhoneNumber
+} from './validators';
 
 export default function determineAddressType (address) {
   if (isValidEmail(address)) {

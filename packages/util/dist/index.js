@@ -3,9 +3,9 @@ function _interopDefault (ex) { return (ex && (typeof ex === 'object') && 'defau
 var util = require('@hello10/util');
 var Type = _interopDefault(require('type-of-is'));
 var lodash = require('lodash');
+var urlRegex = _interopDefault(require('url-regex-safe'));
 var emailRegex = _interopDefault(require('email-regex'));
 var phoneRegex = _interopDefault(require('phone-regex'));
-var UrlRegex = _interopDefault(require('url-regex-safe'));
 
 const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
@@ -27,6 +27,32 @@ function generateUsername() {
 }
 function isGeneratedUsername(username) {
   return username.match(regex);
+}
+
+function isValidUrlStrict(url) {
+  const regex = urlRegex({
+    exact: true,
+    strict: true
+  });
+  return regex.test(url);
+}
+function isValidUrl(url) {
+  const regex = urlRegex({
+    exact: true
+  });
+  return regex.test(url);
+}
+function isValidEmail(email) {
+  const regex = emailRegex({
+    exact: true
+  });
+  return regex.test(email);
+}
+function isValidPhoneNumber(number) {
+  const regex = phoneRegex({
+    exact: true
+  });
+  return regex.test(number);
 }
 
 function camelCaseKeys(obj) {
@@ -63,20 +89,6 @@ function dayAndTime(date) {
     day,
     time
   };
-}
-
-function isValidEmail(email) {
-  const regex = emailRegex({
-    exact: true
-  });
-  return regex.test(email);
-}
-
-function isValidPhoneNumber(number) {
-  const regex = phoneRegex({
-    exact: true
-  });
-  return regex.test(number);
 }
 
 function determineAddressType(address) {
@@ -136,10 +148,6 @@ function generateObjectID(time) {
   return uint16toHex(id);
 }
 
-const regex$1 = UrlRegex({
-  exact: true
-});
-
 function omitTypename(obj) {
   return obj ? lodash.omit(obj, '__typename') : obj;
 }
@@ -186,9 +194,10 @@ exports.determineAddressType = determineAddressType;
 exports.generateObjectID = generateObjectID;
 exports.generateUsername = generateUsername;
 exports.isGeneratedUsername = isGeneratedUsername;
-exports.isUrl = regex$1;
 exports.isValidEmail = isValidEmail;
 exports.isValidPhoneNumber = isValidPhoneNumber;
+exports.isValidUrl = isValidUrl;
+exports.isValidUrlStrict = isValidUrlStrict;
 exports.omitTypename = omitTypename;
 exports.pluralize = pluralize;
 exports.readableCode = readableCode;

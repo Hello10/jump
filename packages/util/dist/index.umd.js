@@ -1,12 +1,12 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hello10/util'), require('type-of-is'), require('lodash'), require('email-regex'), require('phone-regex'), require('url-regex-safe')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@hello10/util', 'type-of-is', 'lodash', 'email-regex', 'phone-regex', 'url-regex-safe'], factory) :
-  (global = global || self, factory(global.jumpUtil = {}, global.util, global.typeOfIs, global.lodash, global.emailRegex, global.phoneRegex, global.urlRegexSafe));
-}(this, (function (exports, util, Type, lodash, emailRegex, phoneRegex, UrlRegex) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hello10/util'), require('type-of-is'), require('lodash'), require('url-regex-safe'), require('email-regex'), require('phone-regex')) :
+  typeof define === 'function' && define.amd ? define(['exports', '@hello10/util', 'type-of-is', 'lodash', 'url-regex-safe', 'email-regex', 'phone-regex'], factory) :
+  (global = global || self, factory(global.jumpUtil = {}, global.util, global.typeOfIs, global.lodash, global.urlRegexSafe, global.emailRegex, global.phoneRegex));
+}(this, (function (exports, util, Type, lodash, urlRegex, emailRegex, phoneRegex) {
   Type = Type && Object.prototype.hasOwnProperty.call(Type, 'default') ? Type['default'] : Type;
+  urlRegex = urlRegex && Object.prototype.hasOwnProperty.call(urlRegex, 'default') ? urlRegex['default'] : urlRegex;
   emailRegex = emailRegex && Object.prototype.hasOwnProperty.call(emailRegex, 'default') ? emailRegex['default'] : emailRegex;
   phoneRegex = phoneRegex && Object.prototype.hasOwnProperty.call(phoneRegex, 'default') ? phoneRegex['default'] : phoneRegex;
-  UrlRegex = UrlRegex && Object.prototype.hasOwnProperty.call(UrlRegex, 'default') ? UrlRegex['default'] : UrlRegex;
 
   const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
@@ -28,6 +28,32 @@
   }
   function isGeneratedUsername(username) {
     return username.match(regex);
+  }
+
+  function isValidUrlStrict(url) {
+    const regex = urlRegex({
+      exact: true,
+      strict: true
+    });
+    return regex.test(url);
+  }
+  function isValidUrl(url) {
+    const regex = urlRegex({
+      exact: true
+    });
+    return regex.test(url);
+  }
+  function isValidEmail(email) {
+    const regex = emailRegex({
+      exact: true
+    });
+    return regex.test(email);
+  }
+  function isValidPhoneNumber(number) {
+    const regex = phoneRegex({
+      exact: true
+    });
+    return regex.test(number);
   }
 
   function camelCaseKeys(obj) {
@@ -64,20 +90,6 @@
       day,
       time
     };
-  }
-
-  function isValidEmail(email) {
-    const regex = emailRegex({
-      exact: true
-    });
-    return regex.test(email);
-  }
-
-  function isValidPhoneNumber(number) {
-    const regex = phoneRegex({
-      exact: true
-    });
-    return regex.test(number);
   }
 
   function determineAddressType(address) {
@@ -137,10 +149,6 @@
     return uint16toHex(id);
   }
 
-  const regex$1 = UrlRegex({
-    exact: true
-  });
-
   function omitTypename(obj) {
     return obj ? lodash.omit(obj, '__typename') : obj;
   }
@@ -187,9 +195,10 @@
   exports.generateObjectID = generateObjectID;
   exports.generateUsername = generateUsername;
   exports.isGeneratedUsername = isGeneratedUsername;
-  exports.isUrl = regex$1;
   exports.isValidEmail = isValidEmail;
   exports.isValidPhoneNumber = isValidPhoneNumber;
+  exports.isValidUrl = isValidUrl;
+  exports.isValidUrlStrict = isValidUrlStrict;
   exports.omitTypename = omitTypename;
   exports.pluralize = pluralize;
   exports.readableCode = readableCode;
