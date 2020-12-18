@@ -1,11 +1,12 @@
 (function (global, factory) {
-  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hello10/util'), require('type-of-is'), require('lodash'), require('email-regex'), require('phone-regex')) :
-  typeof define === 'function' && define.amd ? define(['exports', '@hello10/util', 'type-of-is', 'lodash', 'email-regex', 'phone-regex'], factory) :
-  (global = global || self, factory(global.jumpUtil = {}, global.util, global.typeOfIs, global.lodash, global.emailRegex, global.phoneRegex));
-}(this, (function (exports, util, Type, lodash, emailRegex, phoneRegex) {
+  typeof exports === 'object' && typeof module !== 'undefined' ? factory(exports, require('@hello10/util'), require('type-of-is'), require('lodash'), require('email-regex'), require('phone-regex'), require('url-regex-safe')) :
+  typeof define === 'function' && define.amd ? define(['exports', '@hello10/util', 'type-of-is', 'lodash', 'email-regex', 'phone-regex', 'url-regex-safe'], factory) :
+  (global = global || self, factory(global.jumpUtil = {}, global.util, global.typeOfIs, global.lodash, global.emailRegex, global.phoneRegex, global.urlRegexSafe));
+}(this, (function (exports, util, Type, lodash, emailRegex, phoneRegex, UrlRegex) {
   Type = Type && Object.prototype.hasOwnProperty.call(Type, 'default') ? Type['default'] : Type;
   emailRegex = emailRegex && Object.prototype.hasOwnProperty.call(emailRegex, 'default') ? emailRegex['default'] : emailRegex;
   phoneRegex = phoneRegex && Object.prototype.hasOwnProperty.call(phoneRegex, 'default') ? phoneRegex['default'] : phoneRegex;
+  UrlRegex = UrlRegex && Object.prototype.hasOwnProperty.call(UrlRegex, 'default') ? UrlRegex['default'] : UrlRegex;
 
   const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
@@ -136,6 +137,10 @@
     return uint16toHex(id);
   }
 
+  const regex$1 = UrlRegex({
+    exact: true
+  });
+
   function omitTypename(obj) {
     return obj ? lodash.omit(obj, '__typename') : obj;
   }
@@ -182,6 +187,7 @@
   exports.generateObjectID = generateObjectID;
   exports.generateUsername = generateUsername;
   exports.isGeneratedUsername = isGeneratedUsername;
+  exports.isUrl = regex$1;
   exports.isValidEmail = isValidEmail;
   exports.isValidPhoneNumber = isValidPhoneNumber;
   exports.omitTypename = omitTypename;

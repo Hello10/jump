@@ -5,6 +5,7 @@ export { default as Type } from 'type-of-is';
 import { times, mapKeys, camelCase, pickBy, identity, compact, omit, isEqual, sortBy } from 'lodash';
 import emailRegex from 'email-regex';
 import phoneRegex from 'phone-regex';
+import UrlRegex from 'url-regex-safe';
 
 const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
@@ -135,6 +136,10 @@ function generateObjectID(time) {
   return uint16toHex(id);
 }
 
+const regex$1 = UrlRegex({
+  exact: true
+});
+
 function omitTypename(obj) {
   return obj ? omit(obj, '__typename') : obj;
 }
@@ -165,5 +170,5 @@ function storageDownloadUrl({
   return `${BASE_PATH}/${bucket}/o/${key}?alt=media`;
 }
 
-export { camelCaseKeys, compact_ as compact, dayAndTime, determineAddressType, generateObjectID, generateUsername, isGeneratedUsername, isValidEmail, isValidPhoneNumber, omitTypename, pluralize, readableCode, setwiseEqual, storageDownloadUrl };
+export { camelCaseKeys, compact_ as compact, dayAndTime, determineAddressType, generateObjectID, generateUsername, isGeneratedUsername, regex$1 as isUrl, isValidEmail, isValidPhoneNumber, omitTypename, pluralize, readableCode, setwiseEqual, storageDownloadUrl };
 //# sourceMappingURL=index.modern.js.map

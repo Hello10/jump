@@ -5,6 +5,7 @@ var Type = _interopDefault(require('type-of-is'));
 var lodash = require('lodash');
 var emailRegex = _interopDefault(require('email-regex'));
 var phoneRegex = _interopDefault(require('phone-regex'));
+var UrlRegex = _interopDefault(require('url-regex-safe'));
 
 const chars = 'ABCDEFGHIJKLMNPQRSTUVWXYZ123456789'.split('');
 
@@ -135,6 +136,10 @@ function generateObjectID(time) {
   return uint16toHex(id);
 }
 
+const regex$1 = UrlRegex({
+  exact: true
+});
+
 function omitTypename(obj) {
   return obj ? lodash.omit(obj, '__typename') : obj;
 }
@@ -181,6 +186,7 @@ exports.determineAddressType = determineAddressType;
 exports.generateObjectID = generateObjectID;
 exports.generateUsername = generateUsername;
 exports.isGeneratedUsername = isGeneratedUsername;
+exports.isUrl = regex$1;
 exports.isValidEmail = isValidEmail;
 exports.isValidPhoneNumber = isValidPhoneNumber;
 exports.omitTypename = omitTypename;
