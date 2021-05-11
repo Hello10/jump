@@ -20,7 +20,7 @@
   "dependencies": {
     "@hello10/util": "1.13.0",
     "email-regex": "4.0.0",
-    "lodash": "4.17.20",
+    "lodash": "4.17.21",
     "phone-regex": "2.1.0",
     "randomstring": "1.1.5",
     "type-of-is": "3.5.1",
