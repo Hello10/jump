@@ -22,7 +22,7 @@
     "@hello10/util": "1.13.0",
     "cors": "2.8.5",
     "dataloader": "2.0.0",
-    "express": "4.17.1",
+    "express": "4.17.3",
     "lodash": "4.17.20"
   },
   "devDependencies": {
