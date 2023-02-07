@@ -6,7 +6,7 @@ import {
   randomFloatMaker,
 } from '@jump/util'
 
-import isSupported from './isSupported'
+import isSupported from '../helpers/isSupported'
 
 const volumeRange = { min: 0, max: 1 }
 const clipVolume = clipper(volumeRange)
@@ -22,13 +22,7 @@ const randomPitch = randomFloatMaker(pitchRange)
 
 export class Speaker {
   constructor(args = {}) {
-    const { defaults } = this
-    this.voice = defaults.voice
-    this.rate = defaults.rate
-    this.pitch = defaults.pitch
-    this.volume = defaults.volume
-    this.lang = defaults.lang
-
+    this.setDefaults()
     this._setAttrs(args)
   }
 
@@ -62,14 +56,18 @@ export class Speaker {
     })
   }
 
-  get defaults() {
-    return {
+  setDefaults() {
+    const defaults = {
       rate: 1,
       pitch: 1,
       volume: 0.5,
       voice: 'Alex',
       lang: 'en-us'
     }
+
+    Object.entries(defaults).forEach(([key, value]) => {
+      this[key] = value
+    })
   }
 
   set voice(voice) {
@@ -157,6 +155,30 @@ export class Speaker {
 
   randomizeVolume() {
     this._volume = randomVolume()
+  }
+
+  cancel() {
+    window.speechSynthesis.cancel()
+  }
+
+  pause() {
+    window.speechSynthesis.pause()
+  }
+
+  resume() {
+    window.speechSynthesis.resume()
+  }
+
+  get paused() {
+    return window.speechSynthesis.paused
+  }
+
+  get pending() {
+    return window.speechSynthesis.pending
+  }
+
+  get speaking() {
+    return window.speechSynthesis.speaking
   }
 
   async speak ({ text, ...args }) {

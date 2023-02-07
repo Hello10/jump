@@ -1,7 +1,7 @@
 import { isString, isFunction } from './type'
 import { classes } from './classes'
 
-export function h (tag) {
+export function html (tag) {
   return (attrs = {}) => {
     const hasAttrs = attrs.constructor === Object
 
@@ -38,8 +38,12 @@ export function h (tag) {
   }
 }
 
-export const div = h('div')
-export const span = h('span')
-export const input = h('input')
-export const image = h('image')
-export const a = h('a')
+export const div = html('div')
+export const span = html('span')
+export const input = html('input')
+export const image = html('image')
+export const a = html('a')
+
+export function stripTags(str) {
+  return str.replace(/(<([^>]+)>)/gi, '')
+}
