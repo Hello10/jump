@@ -28,6 +28,7 @@ export default function contextBuilder ({
     }
 
     let session_id = null;
+    let session = null;
     let user_id = null;
     let user = null;
     let load_user_error = null;
@@ -36,7 +37,7 @@ export default function contextBuilder ({
       logger.debug('Getting token');
       const token = getToken(request);
       logger.debug('Loading session');
-      const session = await loadSession({token, getCollection, getLoader});
+      session = await loadSession({token, getCollection, getLoader});
       ({session_id, user_id, user} = session);
       logger.debug('Loaded session', {session_id, user});
     } catch (error) {
@@ -46,6 +47,7 @@ export default function contextBuilder ({
 
     return {
       session_id,
+      session,
       user_id,
       user,
       load_user_error,

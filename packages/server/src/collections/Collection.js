@@ -65,13 +65,13 @@ export default class Collection {
     throw new Error('Collection child class must implement .create');
   }
 
-  createAll ({datas}) {
-    return mapp(datas, (data)=> this.create({data}));
+  createAll ({datas, ...options}) {
+    return mapp(datas, (data)=> this.create({data, ...options}));
   }
 
-  async findOrCreate ({query, data}) {
-    const doc = await this.findOne({query});
-    return doc || this.create({data});
+  async findOrCreate ({query, data, ...options}) {
+    const doc = await this.findOne({query, ...options});
+    return doc || this.create({data, ...options});
   }
 
   ///////////////
@@ -82,56 +82,57 @@ export default class Collection {
     throw new Error('Collection child class must implement .exists');
   }
 
-  existsAssert ({id}) {
-    return this.exists({id, assert: true});
+  existsAssert ({id, ...options}) {
+    return this.exists({id, assert: true, ...options});
   }
 
-  async existsAll ({ids, assert = false}) {
-    const docs = await this.getAll({ids, assert});
+  async existsAll ({ids, assert = false, ...options}) {
+    const docs = await this.getAll({ids, assert, ...options});
     return docs.every((doc)=> !!doc);
   }
 
-  existsAllAssert ({ids}) {
-    return this.existsAll({ids, assert: true});
+  existsAllAssert ({ids, ...options}) {
+    return this.existsAll({ids, assert: true, ...options});
   }
 
   get (/* {id, assert = false} */) {
     throw new Error('Collection child class must implement .get');
   }
 
-  getAssert ({id}) {
-    return this.get({id, assert: true});
+  getAssert ({id, ...options}) {
+    return this.get({id, assert: true, ...options});
   }
 
   getAll (/* {ids, assert = false} */) {
     throw new Error('Collection child class must implement .getAll');
   }
 
-  getAllAssert ({ids}) {
-    return this.getAll({ids, assert: true});
+  getAllAssert ({ids, ...options}) {
+    return this.getAll({ids, assert: true, ...options});
   }
 
   find (/* {query, limit, sort, at, after, select} = {} */) {
     throw new Error('Collection child class must implement .find');
   }
 
-  async findOne ({query, sort, select}) {
+  async findOne ({query, sort, select, ...options}) {
     const docs = await this.find({
       limit: 1,
       query,
       sort,
-      select
+      select,
+      ...options
     });
     return (docs.length > 0) ? docs[0] : null;
   }
 
-  async findIds ({query}) {
-    const docs = await this.find({query, select: ['id']});
+  async findIds ({query, ...options}) {
+    const docs = await this.find({query, select: ['id'], ...options});
     return docs.map(({id})=> id);
   }
 
-  async list ({limit, sort, at, after} = {}) {
-    return this.find({limit, sort, at, after});
+  async list ({limit, sort, at, after, ...options} = {}) {
+    return this.find({limit, sort, at, after, ...options});
   }
 
   /////////////////
@@ -142,24 +143,24 @@ export default class Collection {
     throw new Error('Collection child class must implement .update');
   }
 
-  updateAssert ({id, data, merge = true}) {
-    return this.update({id, data, merge, assert: true});
+  updateAssert ({id, data, merge = true, ...options}) {
+    return this.update({id, data, merge, assert: true, ...options});
   }
 
-  async updateAll ({ids, data, merge = true, assert = false}) {
+  async updateAll ({ids, data, merge = true, assert = false, ...options}) {
     this._addUpdatedAt(data);
     return mapp(ids, (id)=> {
-      return this.update({id, data, merge, assert});
+      return this.update({id, data, merge, assert, ...options});
     });
   }
 
-  updateAllAssert ({ids, data, merge = true}) {
-    return this.update({ids, data, merge, assert: true});
+  updateAllAssert ({ids, data, merge = true, ...options}) {
+    return this.update({ids, data, merge, assert: true, ...options});
   }
 
-  async updateMany ({query, data, merge = true}) {
-    const ids = await this.findIds({query});
-    return this.updateAll({ids, data, merge});
+  async updateMany ({query, data, merge = true, ...options}) {
+    const ids = await this.findIds({query, ...options});
+    return this.updateAll({ids, data, merge, ...options});
   }
 
   /////////////////
@@ -170,17 +171,17 @@ export default class Collection {
     throw new Error('Collection child class must implement .delete');
   }
 
-  deleteAssert ({id}) {
-    return this.delete({id, assert: true});
+  deleteAssert ({id, ...options}) {
+    return this.delete({id, assert: true, ...options});
   }
 
   deleteAll (/* {ids} */) {
     throw new Error('Collection child class must implement .deleteAll');
   }
 
-  async deleteMany ({query}) {
-    const ids = await this.findIds({query});
-    return this.deleteAll({ids});
+  async deleteMany ({query, ...options}) {
+    const ids = await this.findIds({query, ...options});
+    return this.deleteAll({ids, ...options});
   }
 
   /////////////
@@ -227,23 +228,31 @@ export default class Collection {
     if (!time) {
       time = this.timestamp();
     }
-    this._addCreatedAt(obj, time);
-    this._addUpdatedAt(obj, time);
+    obj = this._addCreatedAt(obj, time);
+    obj = this._addUpdatedAt(obj, time);
     return obj;
   }
 
   _addCreatedAt (obj, time) {
-    if (!('created_at' in obj)) {
-      obj.created_at = time || this.timestamp();
-    }
-    return obj;
+    const {
+      created_at = (time || this.timestamp()),
+      ...rest
+    } = obj;
+    return {
+      created_at,
+      ...rest
+    };
   }
 
   _addUpdatedAt (obj, time) {
-    if (!('updated_at' in obj)) {
-      obj.updated_at = time || this.timestamp();
-    }
-    return obj;
+    const {
+      updated_at = (time || this.timestamp()),
+      ...rest
+    } = obj;
+    return {
+      updated_at,
+      ...rest
+    };
   }
 }
 

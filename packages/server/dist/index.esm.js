@@ -5,6 +5,7 @@ import { mapp, singleton } from '@hello10/util';
 import Logger from '@hello10/logger';
 import { formatError as formatError$1, graphql } from 'graphql';
 import { makeExecutableSchema } from 'graphql-tools';
+import gql from 'graphql-tag';
 import Express from 'express';
 import Cors from 'cors';
 
@@ -195,24 +196,30 @@ class Collection {
     throw new Error('Collection child class must implement .create');
   }
 
-  createAll({
-    datas
-  }) {
-    return mapp(datas, data => this.create({
+  createAll(_ref) {
+    let {
+      datas
+    } = _ref,
+        options = _objectWithoutPropertiesLoose(_ref, ["datas"]);
+
+    return mapp(datas, data => this.create(_extends({
       data
-    }));
+    }, options)));
   }
 
-  async findOrCreate({
-    query,
-    data
-  }) {
-    const doc = await this.findOne({
-      query
-    });
-    return doc || this.create({
+  async findOrCreate(_ref2) {
+    let {
+      query,
       data
-    });
+    } = _ref2,
+        options = _objectWithoutPropertiesLoose(_ref2, ["query", "data"]);
+
+    const doc = await this.findOne(_extends({
+      query
+    }, options));
+    return doc || this.create(_extends({
+      data
+    }, options));
   } ///////////////
   // Core:Read //
   ///////////////
@@ -224,33 +231,42 @@ class Collection {
     throw new Error('Collection child class must implement .exists');
   }
 
-  existsAssert({
-    id
-  }) {
-    return this.exists({
+  existsAssert(_ref3) {
+    let {
+      id
+    } = _ref3,
+        options = _objectWithoutPropertiesLoose(_ref3, ["id"]);
+
+    return this.exists(_extends({
       id,
       assert: true
-    });
+    }, options));
   }
 
-  async existsAll({
-    ids,
-    assert = false
-  }) {
-    const docs = await this.getAll({
+  async existsAll(_ref4) {
+    let {
+      ids,
+      assert = false
+    } = _ref4,
+        options = _objectWithoutPropertiesLoose(_ref4, ["ids", "assert"]);
+
+    const docs = await this.getAll(_extends({
       ids,
       assert
-    });
+    }, options));
     return docs.every(doc => !!doc);
   }
 
-  existsAllAssert({
-    ids
-  }) {
-    return this.existsAll({
+  existsAllAssert(_ref5) {
+    let {
+      ids
+    } = _ref5,
+        options = _objectWithoutPropertiesLoose(_ref5, ["ids"]);
+
+    return this.existsAll(_extends({
       ids,
       assert: true
-    });
+    }, options));
   }
 
   get()
@@ -259,13 +275,16 @@ class Collection {
     throw new Error('Collection child class must implement .get');
   }
 
-  getAssert({
-    id
-  }) {
-    return this.get({
+  getAssert(_ref6) {
+    let {
+      id
+    } = _ref6,
+        options = _objectWithoutPropertiesLoose(_ref6, ["id"]);
+
+    return this.get(_extends({
       id,
       assert: true
-    });
+    }, options));
   }
 
   getAll()
@@ -274,13 +293,16 @@ class Collection {
     throw new Error('Collection child class must implement .getAll');
   }
 
-  getAllAssert({
-    ids
-  }) {
-    return this.getAll({
+  getAllAssert(_ref7) {
+    let {
+      ids
+    } = _ref7,
+        options = _objectWithoutPropertiesLoose(_ref7, ["ids"]);
+
+    return this.getAll(_extends({
       ids,
       assert: true
-    });
+    }, options));
   }
 
   find()
@@ -289,44 +311,53 @@ class Collection {
     throw new Error('Collection child class must implement .find');
   }
 
-  async findOne({
-    query,
-    sort,
-    select
-  }) {
-    const docs = await this.find({
+  async findOne(_ref8) {
+    let {
+      query,
+      sort,
+      select
+    } = _ref8,
+        options = _objectWithoutPropertiesLoose(_ref8, ["query", "sort", "select"]);
+
+    const docs = await this.find(_extends({
       limit: 1,
       query,
       sort,
       select
-    });
+    }, options));
     return docs.length > 0 ? docs[0] : null;
   }
 
-  async findIds({
-    query
-  }) {
-    const docs = await this.find({
+  async findIds(_ref9) {
+    let {
+      query
+    } = _ref9,
+        options = _objectWithoutPropertiesLoose(_ref9, ["query"]);
+
+    const docs = await this.find(_extends({
       query,
       select: ['id']
-    });
+    }, options));
     return docs.map(({
       id
     }) => id);
   }
 
-  async list({
-    limit,
-    sort,
-    at,
-    after
-  } = {}) {
-    return this.find({
+  async list(_ref10 = {}) {
+    let {
       limit,
       sort,
       at,
       after
-    });
+    } = _ref10,
+        options = _objectWithoutPropertiesLoose(_ref10, ["limit", "sort", "at", "after"]);
+
+    return this.find(_extends({
+      limit,
+      sort,
+      at,
+      after
+    }, options));
   } /////////////////
   // Core:Update //
   /////////////////
@@ -338,63 +369,75 @@ class Collection {
     throw new Error('Collection child class must implement .update');
   }
 
-  updateAssert({
-    id,
-    data,
-    merge = true
-  }) {
-    return this.update({
+  updateAssert(_ref11) {
+    let {
+      id,
+      data,
+      merge = true
+    } = _ref11,
+        options = _objectWithoutPropertiesLoose(_ref11, ["id", "data", "merge"]);
+
+    return this.update(_extends({
       id,
       data,
       merge,
       assert: true
-    });
+    }, options));
   }
 
-  async updateAll({
-    ids,
-    data,
-    merge = true,
-    assert = false
-  }) {
+  async updateAll(_ref12) {
+    let {
+      ids,
+      data,
+      merge = true,
+      assert = false
+    } = _ref12,
+        options = _objectWithoutPropertiesLoose(_ref12, ["ids", "data", "merge", "assert"]);
+
     this._addUpdatedAt(data);
 
     return mapp(ids, id => {
-      return this.update({
+      return this.update(_extends({
         id,
         data,
         merge,
         assert
-      });
+      }, options));
     });
   }
 
-  updateAllAssert({
-    ids,
-    data,
-    merge = true
-  }) {
-    return this.update({
+  updateAllAssert(_ref13) {
+    let {
+      ids,
+      data,
+      merge = true
+    } = _ref13,
+        options = _objectWithoutPropertiesLoose(_ref13, ["ids", "data", "merge"]);
+
+    return this.update(_extends({
       ids,
       data,
       merge,
       assert: true
-    });
+    }, options));
   }
 
-  async updateMany({
-    query,
-    data,
-    merge = true
-  }) {
-    const ids = await this.findIds({
+  async updateMany(_ref14) {
+    let {
+      query,
+      data,
+      merge = true
+    } = _ref14,
+        options = _objectWithoutPropertiesLoose(_ref14, ["query", "data", "merge"]);
+
+    const ids = await this.findIds(_extends({
       query
-    });
-    return this.updateAll({
+    }, options));
+    return this.updateAll(_extends({
       ids,
       data,
       merge
-    });
+    }, options));
   } /////////////////
   // Core:Delete //
   /////////////////
@@ -406,13 +449,16 @@ class Collection {
     throw new Error('Collection child class must implement .delete');
   }
 
-  deleteAssert({
-    id
-  }) {
-    return this.delete({
+  deleteAssert(_ref15) {
+    let {
+      id
+    } = _ref15,
+        options = _objectWithoutPropertiesLoose(_ref15, ["id"]);
+
+    return this.delete(_extends({
       id,
       assert: true
-    });
+    }, options));
   }
 
   deleteAll()
@@ -421,15 +467,18 @@ class Collection {
     throw new Error('Collection child class must implement .deleteAll');
   }
 
-  async deleteMany({
-    query
-  }) {
-    const ids = await this.findIds({
+  async deleteMany(_ref16) {
+    let {
       query
-    });
-    return this.deleteAll({
+    } = _ref16,
+        options = _objectWithoutPropertiesLoose(_ref16, ["query"]);
+
+    const ids = await this.findIds(_extends({
+      query
+    }, options));
+    return this.deleteAll(_extends({
       ids
-    });
+    }, options));
   } /////////////
   // Loaders //
   /////////////
@@ -476,27 +525,31 @@ class Collection {
       time = this.timestamp();
     }
 
-    this._addCreatedAt(obj, time);
-
-    this._addUpdatedAt(obj, time);
-
+    obj = this._addCreatedAt(obj, time);
+    obj = this._addUpdatedAt(obj, time);
     return obj;
   }
 
   _addCreatedAt(obj, time) {
-    if (!('created_at' in obj)) {
-      obj.created_at = time || this.timestamp();
-    }
+    const {
+      created_at = time || this.timestamp()
+    } = obj,
+          rest = _objectWithoutPropertiesLoose(obj, ["created_at"]);
 
-    return obj;
+    return _extends({
+      created_at
+    }, rest);
   }
 
   _addUpdatedAt(obj, time) {
-    if (!('updated_at' in obj)) {
-      obj.updated_at = time || this.timestamp();
-    }
+    const {
+      updated_at = time || this.timestamp()
+    } = obj,
+          rest = _objectWithoutPropertiesLoose(obj, ["updated_at"]);
 
-    return obj;
+    return _extends({
+      updated_at
+    }, rest);
   }
 
 }
@@ -994,6 +1047,7 @@ function contextBuilder(_ref) {
     }
 
     let session_id = null;
+    let session = null;
     let user_id = null;
     let user = null;
     let load_user_error = null;
@@ -1002,7 +1056,7 @@ function contextBuilder(_ref) {
       logger$1.debug('Getting token');
       const token = getToken$1(request);
       logger$1.debug('Loading session');
-      const session = await loadSession({
+      session = await loadSession({
         token,
         getCollection,
         getLoader
@@ -1023,6 +1077,7 @@ function contextBuilder(_ref) {
 
     return _extends({
       session_id,
+      session,
       user_id,
       user,
       load_user_error,
@@ -1610,6 +1665,11 @@ function processSchema({
     Controllers,
     Scalars
   });
+
+  if (typeof Schema === "string") {
+    Schema = gql(Schema);
+  }
+
   const {
     definitions
   } = Schema;

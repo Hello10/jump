@@ -1,4 +1,5 @@
 import {get, difference} from 'lodash';
+import gql from 'graphql-tag';
 
 import exposeResolvers from './exposeResolvers';
 
@@ -92,6 +93,9 @@ function checkSchema ({groups: schema_groups, resolvers}) {
 
 export default function processSchema ({Schema, Controllers, Scalars}) {
   const resolvers = exposeResolvers({Controllers, Scalars});
+  if (typeof Schema === "string") {
+    Schema = gql(Schema);
+  }
   const {definitions} = Schema;
   const {enums, groups} = processDefinitions(definitions);
   const errors = checkSchema({resolvers, groups});
