@@ -1,0 +1,41 @@
+{
+  "name": "@jump/api",
+  "version": "1.0.0",
+  "description": "Jump API",
+  "source": "./src/index.js",
+  "main": "./dist/main.js",
+  "module": "./dist/module.js",
+  "scripts": {
+    "build": "parcel build",
+    "build:watch": "parcel watch",
+    "clean": "rm -rf ./node_modules ./dist package-lock.json",
+    "lint": "standard ./src/**/*.js ./src/**/*.jsx",
+    "lint:fix": "npm run lint -- --fix",
+    "test": "npx jest --coverage"
+  },
+  "author": "stephen.handley@gmail.com",
+  "license": "MIT",
+  "peerDependencies": {
+    "graphql": "^16.6.0"
+  },
+  "devDependencies": {
+    "graphql": "^16.6.0"
+  },
+  "dependencies": {
+    "@jump/shared": "1.0.0",
+    "@jump/util": "1.0.0",
+    "@graphql-tools/schema": "9.0.15",
+    "minimist": "1.2.7"
+  },
+  "standard": {
+    "globals": [
+      "describe",
+      "context",
+      "before",
+      "beforeEach",
+      "after",
+      "afterEach",
+      "it"
+    ]
+  }
+}

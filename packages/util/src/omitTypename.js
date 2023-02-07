@@ -1,5 +1,5 @@
-import {omit} from 'lodash';
+import { omitter } from './objects'
 
-export default function omitTypename (obj) {
-  return obj ? omit(obj, '__typename') : obj;
-}
+export const omitTypename = omitter(['__typename'])
+
+export default omitTypename

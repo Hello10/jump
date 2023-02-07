@@ -1,32 +1,32 @@
 {
-  "name": "@hello10/jump-util",
-  "version": "3.4.2",
-  "description": "Jump Util",
-  "main": "dist/index.js",
-  "source": "src/index.js",
-  "license": "MIT",
-  "author": {
-    "name": "Stephen Handley",
-    "email": "stephen@hello10.com",
-    "url": "https://hello10.com"
-  },
+  "name": "@jump/util",
+  "version": "1.0.0",
+  "description": "Jump utility functions",
+  "source": "./src/index.js",
+  "main": "./dist/main.js",
+  "module": "./dist/module.js",
   "scripts": {
-    "build": "microbundle --target node",
-    "build:watch": "microbundle watch --target node",
-    "clean": "rm -rf node_modules && rm -rf dist && rm -f yarn.lock",
-    "lint": "eslint ./src",
-    "test": "echo 'no tests'"
+    "build": "parcel build",
+    "build:watch": "parcel watch",
+    "clean": "rm -rf ./node_modules ./dist package-lock.json",
+    "lint": "standard ./src/**/*.js ./src/**/*.jsx",
+    "lint:fix": "npm run lint -- --fix",
+    "test": "npx jest --coverage"
   },
-  "dependencies": {
-    "@hello10/util": "1.13.0",
-    "email-regex": "4.0.0",
-    "lodash": "4.17.20",
-    "phone-regex": "2.1.0",
-    "randomstring": "1.1.5",
-    "type-of-is": "3.5.1",
-    "url-regex-safe": "1.0.2"
-  },
-  "devDependencies": {
-    "@hello10/eslint-config": "1.0.2"
+  "author": "stephen.handley@gmail.com",
+  "license": "MIT",
+  "peerDependencies": {},
+  "devDependencies": {},
+  "dependencies": {},
+  "standard": {
+    "globals": [
+      "describe",
+      "context",
+      "before",
+      "beforeEach",
+      "after",
+      "afterEach",
+      "it"
+    ]
   }
 }
