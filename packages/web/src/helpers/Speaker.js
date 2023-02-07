@@ -20,8 +20,6 @@ const pitchRange = { min: 0, max: 2 }
 const clipPitch = clipper(pitchRange)
 const randomPitch = randomFloatMaker(pitchRange)
 
-const { speechSynthesis, SpeechSynthesisUtterance } = window
-
 export class Speaker {
   constructor(args = {}) {
     const { defaults } = this
@@ -51,6 +49,7 @@ export class Speaker {
   }
 
   static _loadSynthVoices() {
+    const { speechSynthesis } = window
     return new Promise((resolve) => {
       const voices = speechSynthesis.getVoices()
       if (voices.length) {
@@ -162,15 +161,15 @@ export class Speaker {
 
   async speak ({ text, ...args }) {
     this._setAttrs(args)
-
-    const utterance = new SpeechSynthesisUtterance(text)
+    console.log(`Speaking with voice ${this.voice} at ${this.rate}x speed and ${this.pitch} pitch`)
+    const utterance = new window.SpeechSynthesisUtterance(text)
     utterance.voice = this.synthVoice
     utterance.rate = this.rate
     utterance.pitch = this.pitch
     utterance.volume = this.volume
     utterance.lang = this.lang
 
-    speechSynthesis.speak(utterance)
+    window.speechSynthesis.speak(utterance)
   }
 
   _setAttrs(args) {
