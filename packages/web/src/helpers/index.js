@@ -1,6 +1,7 @@
 export * from './checkRedirect'
 export * from './domains'
 export * from './env'
+export * from './events'
 export * from './isBrowser'
 export * from './isSupported'
 export * from './px'

@@ -6,14 +6,18 @@
   "main": "./dist/main.js",
   "module": "./dist/module.js",
   "scripts": {
-    "build": "parcel build",
-    "build:watch": "parcel watch",
+    "build": "parcel build -p 1216",
+    "build:watch": "parcel watch -p 1216",
     "clean": "rm -rf ./node_modules ./dist package-lock.json",
     "lint": "standard ./src/**/*.js ./src/**/*.jsx",
     "lint:fix": "npm run lint -- --fix",
     "test": "npx jest --coverage"
   },
-  "author": "stephen.handley@gmail.com",
+  "author": {
+    "name": "Stephen Handley",
+    "email": "stephen@hello10.com",
+    "url": "https://hello10.com"
+  },
   "license": "MIT",
   "peerDependencies": {},
   "devDependencies": {},

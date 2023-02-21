@@ -44,6 +44,59 @@ export const input = html('input')
 export const image = html('image')
 export const a = html('a')
 
-export function stripTags(str) {
-  return str.replace(/(<([^>]+)>)/gi, '')
+export function tagStripper({ skip = [] } = {}) {
+  return (text) => {
+    const skipRegexes = skip.map(tag => new RegExp(`<\/?${tag}[^>]*>`))
+    const htmlTagsRegex = /<\/?[a-z][\s\S]*?>/gi;
+    const escapedHtml = text.replace(htmlTagsRegex, tag => {
+      if (skipRegexes.some(re => tag.match(re))) {
+        return tag;
+      } else {
+        return '';
+      }
+    });
+    return escapedHtml;
+  }
 }
+
+export function stripTags(args) {
+  const { text, ...rest } = getTextArgs(args)
+  return tagStripper(rest)(text)
+}
+
+export function htmlEscaper ({ skip = [] }) {
+  return (text) => {
+    const entityMap = {
+      '&': '&amp;',
+      '<': '&lt;',
+      '>': '&gt;',
+      '"': '&quot;',
+      "'": '&#39;',
+      '/': '&#x2F;'
+    }
+
+    return String(text).replace(/[&<>"'/]/g, (s) => {
+      const shouldSkip = (skip.indexOf(s) !== -1)
+      return shouldSkip ? s : entityMap[s]
+    })
+  }
+}
+
+export function escapeHtml (args) {
+  const { text, ...rest } = getTextArgs(args)
+  return htmlEscaper(rest)(text)
+}
+
+function getTextArgs(args) {
+  if (isString(args)) {
+    args = { text: args }
+  }
+  if (!('text' in args)) {
+    throw new Error('Missing text argument')
+  }
+  if (!args.skip) {
+    args.skip = []
+  }
+  return args
+}
+

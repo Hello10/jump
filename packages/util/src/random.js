@@ -49,3 +49,12 @@ export function randomFloat(...args) {
   const delta = max - min
   return (Math.random() * delta) + min
 }
+
+export function should (threshold) {
+  const test = Math.random();
+  return (test < threshold);
+}
+
+export function randomIntegerUnder (n) {
+  return Math.floor(n * Math.random());
+}

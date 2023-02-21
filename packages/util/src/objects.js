@@ -1,4 +1,23 @@
 import { camelCase } from './strings'
+import { isNullOrUndefined, isObject } from './type'
+
+export function merge (...objects) {
+  return objects.reduce((merged, obj) => {
+    if (!obj) {
+      return merged
+    }
+    Object.keys(obj).forEach(key => {
+      const value = obj[key]
+      if (isObject(value)) {
+        const existing = merged[key] ?? {}
+        merged[key] = merge(existing, value)
+      } else {
+        merged[key] = value
+      }
+    })
+    return merged
+  }, {})
+}
 
 export function makeIterableEntry (entry) {
   const [key, value] = entry
@@ -117,4 +136,13 @@ export function toQueryString (obj) {
       entry.map(encodeURIComponent).join('=')
     ]
   ), []).join('&')
+}
+
+export function get (object, path, defaultValue = undefined) {
+  const parts = (path ?? '').split('.')
+  const result = parts.reduce((res, current) => {
+    const defined = !isNullOrUndefined(res)
+    return defined ? res[current] : res
+  }, object)
+  return isNullOrUndefined(result) ? defaultValue : result
 }

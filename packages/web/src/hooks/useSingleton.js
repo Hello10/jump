@@ -1,31 +1,6 @@
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 
 export class Singleton {
-  static use (options = {}) {
-    if (!this.instance) {
-      this.instance = new this(options)
-    }
-
-    const { instance } = this
-    const [, setState] = React.useState()
-
-    React.useEffect(() => {
-      let isMounted = true
-      function setStateIfMounted (state) {
-        if (isMounted) {
-          setState(state)
-        }
-      }
-
-      instance.addListener(setStateIfMounted)
-      return () => {
-        isMounted = false
-        instance.removeListener(setStateIfMounted)
-      }
-    }, [])
-    return instance
-  }
-
   constructor (options = {}) {
     if (this.constructor.instance) {
       throw new Error("Don't call singleton constructor directly")
@@ -33,15 +8,10 @@ export class Singleton {
 
     this.options = options
     this.listeners = []
-
-    let { state = {} } = options
-    if (state.constructor === Function) {
-      state = state()
-    }
-    this.state = this.initialize(state)
+    this.state = this.initialize(options)
   }
 
-  initialize (state) {
+  initialize ({ state = {} } = {}) {
     return state
   }
 
@@ -65,7 +35,34 @@ export class Singleton {
   }
 }
 
+const map = new Map()
+
 export function useSingleton (Class, options = {}) {
-  return Class.use(options)
+  let instance = map.get(Class)
+
+  const [_, setState] = useState()
+
+  useEffect(() => {
+    let isMounted = true
+    function setStateIfMounted (state) {
+      if (isMounted) {
+        setState(state)
+      }
+    }
+
+    instance?.addListener(setStateIfMounted)
+    return () => {
+      isMounted = false
+      instance?.removeListener(setStateIfMounted)
+    }
+  }, [Class])
+
+  if (!instance) {
+    instance = new Class(options)
+    map.set(Class, instance)
+  }
+
+  return instance
 }
-useSingleton.Singleton = Singleton
+
+export default useSingleton

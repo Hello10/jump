@@ -3,7 +3,7 @@ import {
   isNullOrUndefined,
   isString,
   randomElement,
-  randomFloatMaker,
+  randomFloatMaker
 } from '@jump/util'
 
 import isSupported from '../helpers/isSupported'

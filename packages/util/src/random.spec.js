@@ -5,9 +5,11 @@ import {
   randomIntMaker,
   randomIndex,
   randomElement,
-  randomFloat
+  randomFloat,
 } from './random'
-import { assert50 } from './tests'
+import { assertMany } from './tests'
+
+const assert50 = assertMany({ times: 50 })
 
 describe('randomInt', () => {
   it('should generate random int', () => {

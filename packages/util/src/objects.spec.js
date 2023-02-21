@@ -1,9 +1,12 @@
 import assert from 'assert'
 
 import {
+  get,
   omitter,
+  merge,
   picker,
   entryReducer,
+  entryMapper,
   mapo,
   makeIterableEntry,
   camelCaseKeys,
@@ -190,3 +193,64 @@ describe('toQueryString', () => {
     assert.equal(output, 'a=1&b=2&c=3')
   })
 })
+
+describe('get', () => {
+  it('should get a nested property from an object', () => {
+    const obj = { a: { b: { c: 1 } } }
+    assert.equal(get(obj, 'a.b.c'), 1)
+  })
+
+  it('should allow for a default value', () => {
+    const obj = { a: { b: { c: 1 } } }
+    assert.equal(get(obj, 'a.b.d', 2), 2)
+  })
+
+  it('should return undefined if the path is not found', () => {
+    const obj = { a: { b: { c: 1 } } }
+    assert.equal(get(obj, 'a.b.d'), undefined)
+  })
+
+  it('should handle null path', () => {
+    const obj = { a: { b: { c: 1 } } }
+    assert.equal(get(obj, null), undefined)
+  })
+
+  it('should handle null value', () => {
+    assert.equal(get(null, 'a.b.c'), undefined)
+  })
+})
+
+describe('merge', () => {
+  it('should handle merging basic objects', () => {
+    const a = { a: 1 }
+    const b = { b: 2 }
+    const c = { c: 3 }
+    const merged = merge(a, b, c)
+    assert.deepEqual(merged, { a: 1, b: 2, c: 3 })
+  })
+
+  it('should handle merging nested objects', () => {
+    const a = { a: 1 }
+    const b = { b: { c: 2 } }
+    const c = { b: { d: 3 } }
+    const merged = merge(a, b, c)
+    assert.deepEqual(merged, { a: 1, b: { c: 2, d: 3 } })
+  })
+
+  it('should handle null arguments', () => {
+    const a = { a: 1 }
+    const b = { b: 2 }
+    const c = null
+    const merged = merge(a, b, c)
+    assert.deepEqual(merged, { a: 1, b: 2 })
+  })
+
+  it('should handle overwriting from left to write', () => {
+    const a = { a: 1 }
+    const b = { a: 2 }
+    const c = { a: 3 }
+    const merged = merge(a, b, c)
+    assert.deepEqual(merged, { a: 3 })
+  })
+})
+
