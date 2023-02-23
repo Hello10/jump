@@ -1,19 +1,36 @@
-import { omitter, type } from '@jump/util'
+import { omitter, type, isNullOrUndefined } from '@jump/util'
 
 import logger from './logger'
 import MatchResult from './MatchResult'
 import Route from './Route'
+import RouterHistory from './RouterHistory'
 
 const getExtra = omitter(['route', 'url'])
 
 export class Router {
   constructor ({
     routes,
-    redirects = [],
+    redirects = {},
     notFound = {},
     maxRedirects = 10,
+    onGo = null,
+    web = null,
   }) {
+    if (isNullOrUndefined(web)) {
+      web = this.#supportsWeb()
+    }
+
+    if (web && !this.#supportsWeb()) {
+      throw new Error('Web is not supported')
+    }
+
+    this.web = web
+    this.history = new RouterHistory({ web })
     this.maxRedirects = maxRedirects
+    this.listeners = []
+    if (onGo) {
+      this.onGo(onGo)
+    }
 
     // Not found defaults
     let {
@@ -64,8 +81,23 @@ export class Router {
       }
     }
 
-    this.listeners = []
     logger.debug('Constructed router', this)
+  }
+
+  start() {
+    let initialUrl
+    if (this.web) {
+      global.window.addEventListener('popstate', (event)=> {
+        const match = this.match(event.state)
+        this.#notifyOnChange(match)
+      })
+      const {pathname, search} = global.window.location
+      initialUrl = `${pathname}${search}`
+    } else {
+      initialUrl = '/'
+    }
+
+    return this.go({url: initialUrl})
   }
 
   getRoute (query) {
@@ -77,26 +109,24 @@ export class Router {
   }
 
   getRouteByName (name) {
-    const route = this.getRoute({name})
-    if (!route) {
-      const msg = `No route named ${name}`
-      logger.error(msg)
-      throw new Error(msg)
-    }
-    return route
+    return this.getRoute({ name })
+  }
+
+  get current () {
+    return this.history.current
   }
 
   // match
   // -----
-  // Checks whether there is a route matching the passed pathname
-  // If there is a match, return route and match params
-  // If no match return notFound
+  // Checks whether there is a route matching the input.
   match (input) {
     input = this.normalizeInput(input)
     const extra = getExtra(input)
-    const original = this._match(input)
-    const redirect = this._checkRedirects({original, extra})
+    const original = this.#doMatch(input)
+    const redirect = this.#checkRedirects({original, extra})
+
     logger.debug('match', {input, original, redirect})
+
     if (redirect) {
       redirect.isRedirect({original})
       return redirect
@@ -107,18 +137,20 @@ export class Router {
 
   normalizeInput (input) {
     switch (type(input)) {
-      case String:
+      case String: {
         if (input.indexOf('/') !== -1) {
-          return {url: input}
+          return { url: input }
         } else {
-          return {route: {name: input}}
+          return { route: {name: input} }
         }
-      case Object:
+      }
+      case Object: {
         if (input.name) {
-          return {route: input}
+          return { route: input }
         } else {
           return input
         }
+      }
       default: {
         const error = new Error('Invalid input')
         error.input = input
@@ -127,9 +159,35 @@ export class Router {
     }
   }
 
-  _match (input) {
+  onGo (listener) {
+    this.listeners.push(listener)
+  }
+
+  go (input) {
+    const match = this.match(input)
+    this.history.push(match.url)
+    this.#notifyOnChange(match)
+    return match
+  }
+
+  back () {
+    const previous = this.history.back()
+    const match = this.match(previous)
+    this.#notifyOnChange(match)
+    return match
+  }
+
+  forward () {
+    const next = this.history.forward()
+    const match = this.match(next)
+    this.#notifyOnChange(match)
+    return match
+  }
+
+  #doMatch (input) {
     logger.debug('Attempting to match route', input)
-    // if passed full url, treat as redirect
+
+    // If passed full url, treat it as redirect
     const {url} = input
     if (url && url.match(/^https?:\/\//)) {
       return new MatchResult({
@@ -139,6 +197,7 @@ export class Router {
       })
     }
 
+    // Find a match for the input
     let match = null
     for (const r of this.routes) {
       match = r.match(input)
@@ -150,7 +209,7 @@ export class Router {
     return match
   }
 
-  _checkRedirects ({
+  #checkRedirects ({
     original,
     extra,
     previous = null,
@@ -212,7 +271,7 @@ export class Router {
       // we got a redirect
       previous = current
       next = this.normalizeInput(next)
-      current = this._match({...next, ...extra})
+      current = this.#doMatch({...next, ...extra})
       if (!current) {
         const error = new Error('No match for redirect result')
         error.redirect = next
@@ -220,7 +279,7 @@ export class Router {
       }
       history.push(current)
       numRedirects++
-      return this._checkRedirects({original, previous, current, numRedirects, history, extra})
+      return this.#checkRedirects({original, previous, current, numRedirects, history, extra})
     } else if (numRedirects > 0) {
       return current
     } else {
@@ -228,16 +287,16 @@ export class Router {
     }
   }
 
-  onGo (listener) {
-    this.listeners.push(listener)
-  }
-
-  go (input) {
-    const match = this.match(input)
+  #notifyOnChange(match) {
     for (const listener of this.listeners) {
       listener(match)
     }
-    return match
+  }
+
+  #supportsWeb () {
+    const hasLocation = Boolean(global.window?.location)
+    const hasHistory = Boolean(global.window?.history)
+    return hasLocation && hasHistory
   }
 }
 

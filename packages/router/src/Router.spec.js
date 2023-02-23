@@ -97,10 +97,7 @@ describe('Router', ()=> {
 
     router = new Router({
       routes,
-      notFound: {
-        name: 'NotFound',
-        path: '/404'
-      },
+      onGo: ()=> {},
       redirects: {
         Session: ({route})=> {
           const hasSession = (route.session !== undefined)
@@ -144,6 +141,8 @@ describe('Router', ()=> {
         }
       }
     })
+
+    router.start()
   })
 
   describe('.getRouteByName', ()=> {
@@ -153,10 +152,9 @@ describe('Router', ()=> {
       assert.equal(route.name, name)
     })
 
-    it('should throw on missing route', ()=> {
-      assert.throws(()=> {
-        router.getRouteByName('MissingAndPresumedScared')
-      })
+    it('should return null when not fond', ()=> {
+      const route = router.getRouteByName('MissingAndPresumedScared')
+      assert(!route)
     })
   })
 
@@ -328,6 +326,16 @@ describe('Router', ()=> {
       assert(!multiMatch.redirect)
       assert.deepEqual(multiMatch.params.derp, [1, 2])
       assert.equal(multiMatch.url, showMultiDerp)
+
+      const tripleDerp = '/show?derp=1&derp=2&derp=3'
+      const tripleMatch = router.match({
+        url: tripleDerp
+      })
+
+      assert(tripleMatch.route)
+      assert(!tripleMatch.redirect)
+      assert.deepEqual(tripleMatch.params.derp, [1, 2, 3])
+      assert.equal(tripleMatch.url, tripleDerp)
     })
 
     it('should handle redirecting when session is required', ()=> {
@@ -446,9 +454,7 @@ describe('Router', ()=> {
       let url = '/redirect/randyquaid'
       let match = router.match(url)
       assert(match.route)
-
       assert(!match.redirect)
-
 
       url = '/redirect/dennisquaid'
       match = router.match(url)
@@ -512,6 +518,80 @@ describe('Router', ()=> {
       router.go({url: quaid})
       assert(went)
       assert.equal(match.url, quaid)
+    })
+  })
+
+  describe('not found configuration', ()=> {
+    beforeEach(()=> {
+      router = new Router({
+        routes: {
+          Home: {
+            path: '/',
+            session: true
+          }
+        },
+        notFound: {
+          name: 'Nofoundo',
+          path: '/nope',
+          redirect: (match)=> {
+            return match ? false : '/nope'
+          }
+        },
+      })
+    })
+
+    it('should handle matched route', ()=> {
+      const url = '/'
+      const match = router.match({url})
+      assert(match?.route)
+      assert.equal(match.route.name, 'Home')
+    })
+
+    it('should handle unmatched route', ()=> {
+      const url = '/barf'
+      const match = router.match({url})
+      assert.equal(match.route.name, 'Nofoundo')
+    })
+  })
+
+  describe('.web', ()=> {
+    it('should detect whether it is being used on web', ()=> {
+      delete global?.window?.location
+      delete global?.window?.history
+
+      router = new Router({
+        routes: {},
+      })
+
+      assert.equal(router.web, false)
+
+      assert.throws(()=> {
+        router = new Router({
+          routes: {},
+          web: true
+        })
+      })
+
+      global.window = {
+        location: {
+          pathname: '/foo',
+          search: '?bar=baz'
+        },
+        history: {
+          pushState: jest.fn(),
+          replaceState: jest.fn(),
+          go: jest.fn()
+        },
+        addEventListener: jest.fn()
+      }
+
+      router = new Router({
+        routes: {}
+      })
+      router.start()
+
+      expect(router.web).toEqual(true)
+      expect(global.window.addEventListener).toHaveBeenCalledWith('popstate', expect.any(Function))
     })
   })
 })

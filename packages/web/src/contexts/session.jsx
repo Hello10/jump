@@ -13,9 +13,11 @@ const SessionContext = createContext({
 })
 
 export function SessionProvider (props) {
-  const children = props.children
-  const supabaseClient = props.supabaseClient
-  const initialSession = props.initialSession ?? null
+  const {
+    children,
+    supabaseClient,
+    initialSession = null
+  } = props
 
   const [session, setSession] = useState(initialSession)
   const [loading, setLoading] = useState(!initialSession)
@@ -30,10 +32,7 @@ export function SessionProvider (props) {
         error
       } = await supabaseClient.auth.getSession()
 
-      console.log('hi got session', { session, error })
-
       if (mounted) {
-        console.log('hi mounted and setting')
         setLoading(false)
         if (error) {
           setError(error)
@@ -71,16 +70,15 @@ export function SessionProvider (props) {
     supabaseClient: () => supabaseClient
   }
 
-  console.log('context value....', value)
-
   return (
-    <SessionContext.Provider value={value}>{children}</SessionContext.Provider>
+    <SessionContext.Provider value={value}>
+      {children}
+    </SessionContext.Provider>
   )
 }
 
 export function useSessionContext () {
   const context = useContext(SessionContext)
-  console.log('hi dat context', context)
   if (context === undefined) {
     throw new Error('useSessionContext must be used within a SessionProvider')
   }
@@ -89,24 +87,22 @@ export function useSessionContext () {
 
 export function useSupabaseClient () {
   const context = useSessionContext()
-  return context?.supabaseClient
+  return context.supabaseClient
 }
 
 export function useSession () {
   const context = useSessionContext()
-  return context?.session ?? null
+  return context.session ?? null
 }
 
 export function useUser () {
   const session = useSession()
-  return session?.user ?? null
+  return session.user ?? null
 }
 
 export function useSessionLoading () {
-  console.log('hihihiih useSessionLoading')
   const context = useSessionContext()
-  console.log('useSessionLoading', context)
-  return context?.loading
+  return context.loading
 }
 
 export function useGetSessionToken () {
