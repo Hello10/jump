@@ -67,7 +67,7 @@ export function SessionProvider (props) {
     loading,
     session,
     error,
-    supabaseClient: () => supabaseClient
+    supabaseClient
   }
 
   return (
@@ -107,13 +107,14 @@ export function useSessionLoading () {
 
 export function useGetSessionToken () {
   const supabase = useSupabaseClient()
+  console.log('hiih supabase', supabase)
   return async function getSessionToken () {
     const session = await supabase.auth.getSession()
     return session?.data?.session?.access_token ?? null
   }
 }
 
-export function useSignout ({ navigate }) {
+export function useSignout ({ go }) {
   const user = useUser()
   const supabase = useSupabaseClient()
 
@@ -122,7 +123,7 @@ export function useSignout ({ navigate }) {
       if (user) {
         await supabase.auth.signOut()
       }
-      navigate('/')
+      go('/')
     }
     signout()
   })

@@ -1,5 +1,5 @@
-import Logger from '@jump/logger';
+import Logger from '@jump/logger'
 
-const logger = new Logger('Router');
+const logger = new Logger('@jump/router')
 
-export default logger;
+export default logger

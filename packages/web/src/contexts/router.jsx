@@ -24,6 +24,7 @@ export function RouterProvider(props) {
     children,
     routes,
     redirects,
+    web = false,
     onGo = ()=> {},
     ...baseInput // TODO: handle baseInput
   } = props
@@ -35,6 +36,7 @@ export function RouterProvider(props) {
     return new JumpRouter({
       routes,
       redirects,
+      web,
       onGo: (match)=> {
         setMatch(match)
         setError(null)
@@ -106,12 +108,12 @@ export function useRouter() {
   return context
 }
 
-export function useRouterGo() {
+export function useGo() {
   const router = useRouter()
   return router.go
 }
 
-export function useRouterParams() {
+export function useParams() {
   const router = useRouter()
   return router.params
 }
@@ -121,9 +123,19 @@ export function useRouterError() {
   return router.error
 }
 
-export function useRouterPage() {
+export function usePage() {
   const router = useRouter()
   return router.page
+}
+
+export function useRoute() {
+  const router = useRouter()
+  return router.route
+}
+
+export function useRouteName() {
+  const route = useRoute()
+  return route?.name
 }
 
 // export function useLocationSearch () {

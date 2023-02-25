@@ -1,3 +1,5 @@
 export * from './Button'
 export * from './GqlPage'
+export * from './Icon'
 export * from './SubmitButton'
+export * from './Svg'

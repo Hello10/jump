@@ -52,7 +52,7 @@ export function useGql ({
   }
 
   async function fetch ({ variables: fetchVariables = {} } = {}) {
-    if (fetching()) {
+    if (fetching) {
       return {
         error: null,
         data: null
@@ -121,7 +121,7 @@ export function useGql ({
   }
 
   function refetch (args) {
-    if (fetching()) {
+    if (fetching) {
       return Promise.resolve()
     }
     setFetched(false)
